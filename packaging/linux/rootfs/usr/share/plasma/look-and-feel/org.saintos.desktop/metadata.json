@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINTOS" }],
+        "Category": "",
+        "Description": "SAINTOS: Breeze Dark with SAINT orange and the SAINT splash",
+        "Id": "org.saintos.desktop",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINTOS",
+        "Version": "0.1"
+    },
+    "X-Plasma-APIVersion": "2",
+    "X-Plasma-MainScript": "defaults",
+    "X-KDE-ParentApp": "org.kde.plasmashell"
+}

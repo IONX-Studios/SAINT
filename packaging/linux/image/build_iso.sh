@@ -130,6 +130,7 @@ echo "$(wc -l < "$WH/saint-runtime.lock") Python packages locked"
 
 # 4c. rootfs overlay, branding, image script, build info
 cp -a "$REPO/packaging/linux/rootfs/." "$D/root/"
+install -Dm0644 "$REPO/packaging/linux/apps/catalog.json" "$D/root/usr/share/saintos/apps.json"
 "$WORK/lockvenv/bin/python" "$REPO/packaging/linux/branding/make_branding.py" "$D/root/usr/share/saintos/branding"
 install -Dm0755 "$HERE/configure-saintos.sh" "$D/root/usr/libexec/saintos/configure-image.sh"
 echo "$SAINTOS_VERSION" > "$D/root/usr/share/saintos/VERSION"

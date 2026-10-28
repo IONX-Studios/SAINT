@@ -9,7 +9,18 @@ for (var i = 0; i < all.length; i++) {
     d.writeConfig("Image", wallpaper);
 }
 
+// The app launcher button shows the SAINTOS mark instead of the Fedora logo.
 var ps = panels();
+for (var k = 0; k < ps.length; k++) {
+    var kw = ps[k].widgets();
+    for (var j = 0; j < kw.length; j++) {
+        if (kw[j].type === "org.kde.plasma.kickoff" || kw[j].type === "org.kde.plasma.kicker") {
+            kw[j].currentConfigGroup = ["General"];
+            kw[j].writeConfig("icon", "saintos");
+        }
+    }
+}
+
 for (var p = 0; p < ps.length; p++) {
     var ws = ps[p].widgets();
     for (var w = 0; w < ws.length; w++) {
@@ -17,7 +28,7 @@ for (var p = 0; p < ps.length; p++) {
         if (t === "org.kde.plasma.icontasks" || t === "org.kde.plasma.taskmanager") {
             ws[w].currentConfigGroup = ["General"];
             var launchers = String(ws[w].readConfig("launchers", ""));
-            var add = ["applications:saint.desktop", "applications:saintos-control.desktop"];
+            var add = ["applications:saint.desktop", "applications:saintos-control.desktop", "applications:saintos-apps.desktop"];
             for (var a = 0; a < add.length; a++) {
                 if (launchers.indexOf(add[a]) < 0) {
                     launchers = launchers ? launchers + "," + add[a] : add[a];

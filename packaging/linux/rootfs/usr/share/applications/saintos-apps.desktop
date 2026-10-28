@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SAINTOS App Installer
+GenericName=Install Apps
+Comment=Install Steam, Claude Code, Discord, Spotify, VS Code and more in one go
+Exec=/usr/bin/saintos-control --page Apps
+Icon=saintos
+Terminal=false
+Categories=System;PackageManager;
+Keywords=install;apps;steam;claude;discord;spotify;flatpak;ninite;

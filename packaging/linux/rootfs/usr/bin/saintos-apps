@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# SAINTOS App Installer from a terminal:  saintos-apps --list  |  saintos-apps steam claude-code discord
+set -euo pipefail
+cd /opt/saint/app
+exec /opt/saint/venv/bin/python -m core.saintos_apps "$@"

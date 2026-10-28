@@ -4,6 +4,7 @@ ui/saintos_center.py
 SAINTOS Control Center: one window for the parts of SAINT that belong to the operating system.
 
     Welcome       what SAINTOS is and the three things to do first
+    Apps          the SAINTOS App Installer: tick your usual apps, install them in one go
     Service       SAINT's user service: status, start / stop / restart, start at login, recent log
     AI            provider, model and address; detects a local Ollama and lists its models
     Voice         microphone, wake word, speech recognition / voice backends
@@ -198,7 +199,7 @@ def run_selftest() -> Dict:
 # --------------------------------------------------------------------------- #
 # Window
 # --------------------------------------------------------------------------- #
-PAGES = ["Welcome", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics", "Updates"]
+PAGES = ["Welcome", "Apps", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics", "Updates"]
 
 
 def build_window(start_page: str = "Welcome"):
@@ -211,9 +212,11 @@ def build_window(start_page: str = "Welcome"):
 
     class _Bridge(QObject):
         done = Signal(object, object)            # (callback, result) back on the GUI thread
+        line = Signal(object, str)               # (callback, text) for streamed command output
 
     bridge = _Bridge()
     bridge.done.connect(lambda cb, result: cb(result))
+    bridge.line.connect(lambda cb, text: cb(text))
 
     def in_background(fn, then):
         """Run ``fn`` off the GUI thread (systemctl, Ollama, the self-test) and hand the result to ``then``."""
@@ -276,10 +279,101 @@ def build_window(start_page: str = "Welcome"):
         "SAINTOS is a Fedora Remix: built from Fedora Linux packages, not an official Fedora product.")
     info.setWordWrap(True)
     v.addWidget(info)
+    wrow = QHBoxLayout()
     open_btn = QPushButton("Open SAINT")
     open_btn.clicked.connect(launch_saint)
-    v.addWidget(open_btn, 0, Qt.AlignLeft)
+    apps_btn = QPushButton("Install my apps…")
+    apps_btn.clicked.connect(lambda: nav.setCurrentRow(PAGES.index("Apps")))
+    wrow.addWidget(open_btn)
+    wrow.addWidget(apps_btn)
+    wrow.addStretch(1)
+    v.addLayout(wrow)
     v.addStretch(1)
+    stack.addWidget(w)
+
+    # ---------------- Apps (the SAINTOS App Installer)
+    from PySide6.QtWidgets import QGridLayout, QGroupBox, QScrollArea
+    from core import saintos_apps as sa
+    w, v = page("Install your apps", "Tick the apps you use and install them all at once. Desktop apps come from "
+                                     "Flathub for your user (no password). Fedora packages ask for your password once.")
+    try:
+        catalog = sa.load_catalog()
+    except (OSError, ValueError) as e:
+        catalog = {}
+        v.addWidget(QLabel(f"The app catalog couldn't be loaded: {e}"))
+    boxes: Dict[str, QCheckBox] = {}
+    holder = QWidget()
+    hv = QVBoxLayout(holder)
+    for cat in dict.fromkeys(a.category for a in catalog.values()):
+        gb = QGroupBox(cat)
+        grid = QGridLayout(gb)
+        for n, app in enumerate(a for a in catalog.values() if a.category == cat):
+            cb = QCheckBox(app.name)
+            cb.setToolTip(f"{app.about}\n{app.method}: {app.ref}")
+            boxes[app.id] = cb
+            grid.addWidget(cb, n // 3, n % 3)
+        hv.addWidget(gb)
+    hv.addStretch(1)
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(holder)
+    v.addWidget(scroll, 3)
+    arow = QHBoxLayout()
+    common_btn = QPushButton("Common picks")
+    clear_btn = QPushButton("Clear")
+    install_btn = QPushButton("Install selected")
+    astatus = QLabel("")
+    for b in (common_btn, clear_btn, install_btn):
+        arow.addWidget(b)
+    arow.addWidget(astatus, 1)
+    v.addLayout(arow)
+    alog = QPlainTextEdit()
+    alog.setReadOnly(True)
+    alog.setMaximumBlockCount(5000)
+    v.addWidget(alog, 2)
+    COMMON = ["steam", "claude-code", "discord", "spotify", "vscode", "chrome", "vlc", "obs", "dev-tools"]
+    common_btn.clicked.connect(lambda: [boxes[i].setChecked(True) for i in COMMON if i in boxes])
+    clear_btn.clicked.connect(lambda: [b.setChecked(False) for b in boxes.values()])
+
+    def mark_installed():
+        def check():
+            return {i: sa.installed(catalog[i]) for i in catalog}
+        def show(res):
+            if isinstance(res, dict):
+                for i, ok in res.items():
+                    if ok:
+                        boxes[i].setText(f"{catalog[i].name} ✓")
+                        boxes[i].setToolTip(boxes[i].toolTip() + "\n(already installed)")
+        in_background(check, show)
+
+    def do_install():
+        chosen = [i for i, b in boxes.items() if b.isChecked()]
+        if not chosen:
+            astatus.setText("Tick at least one app.")
+            return
+        steps = sa.plan(chosen, catalog)
+        missing = sa.missing_tools(steps)
+        if missing:
+            astatus.setText("Missing: " + ", ".join(missing))
+            return
+        install_btn.setEnabled(False)
+        alog.clear()
+        astatus.setText(f"Installing {len(chosen)} app(s)…")
+
+        def finished(res):
+            install_btn.setEnabled(True)
+            if isinstance(res, Exception):
+                astatus.setText(f"Stopped: {res}")
+                return
+            ok = [catalog[i].name for i, good in res.items() if good]
+            bad = [catalog[i].name for i, good in res.items() if not good]
+            astatus.setText((f"Installed: {', '.join(ok)}. " if ok else "") + (f"Failed: {', '.join(bad)}." if bad else ""))
+            mark_installed()
+        in_background(lambda: sa.run_plan(steps, on_line=lambda t: bridge.line.emit(alog.appendPlainText, t)),
+                      finished)
+    install_btn.clicked.connect(do_install)
+    if catalog and os.name != "nt":
+        mark_installed()
     stack.addWidget(w)
 
     # ---------------- Service

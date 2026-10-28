@@ -24,7 +24,7 @@ rm -rf "$SAINT/wheelhouse"
 import importlib, sys
 mods = ["PySide6.QtWidgets", "PySide6.QtSvg", "numpy", "requests", "psutil", "sounddevice", "soundfile",
         "onnxruntime", "faster_whisper", "kokoro_onnx", "misaki.en", "en_core_web_sm", "keyring", "secretstorage", "jeepney", "segno",
-        "zeroconf", "cryptography", "PIL", "core.paths", "core.platform_caps", "modules.desktop.linux.kwin",
+        "zeroconf", "cryptography", "PIL", "core.paths", "core.platform_caps", "core.saintos_apps", "modules.desktop.linux.kwin",
         "ui.saintos_center"]
 bad = []
 for m in mods:
@@ -45,7 +45,7 @@ assert p.system_install(), "SAINT in /opt must use the XDG data folder"
 print("SAINTOS image: SAINT runtime imports OK")
 PY
 )
-chmod 0755 /usr/bin/saint /usr/bin/saintos-control /usr/bin/saintos-diagnose /usr/libexec/saintos/*
+chmod 0755 /usr/bin/saint /usr/bin/saintos-control /usr/bin/saintos-apps /usr/bin/saintos-diagnose /usr/libexec/saintos/*
 
 #--------------------------------------------------------------------------
 # Identity: SAINTOS, a Fedora Remix (Fedora trademark guidelines: not an official Fedora product)
@@ -74,6 +74,22 @@ SUPPORT_END=${SUPPORT_END:-}
 EOF
 echo "SAINTOS ${SAINTOS_VER} (Fedora Remix ${FEDORA_VERSION_ID}) \\n \\l" > /etc/issue
 echo saintos > /etc/hostname
+# /etc/system-release names the system in GRUB (Anaconda writes GRUB_DISTRIBUTOR from it) and in the
+# installer's title. /etc/fedora-release stays Fedora's, so tools that check for Fedora still work.
+rm -f /etc/system-release
+echo "SAINTOS release ${FEDORA_VERSION_ID} (Fedora Remix)" > /etc/system-release
+
+# The installer: "Install SAINTOS" with the SAINTOS mark (desktop icon and menu entry).
+for f in /usr/share/applications/liveinst.desktop /usr/share/applications/org.fedoraproject.AnacondaInstaller.desktop; do
+    [ -f "$f" ] || continue
+    sed -i -e 's/^Name=.*/Name=Install SAINTOS/' -e '/^Name\[/d' -e 's/^Icon=.*/Icon=saintos/' "$f"
+done
+
+# Login screen (SDDM's Breeze theme, when SDDM is the login manager): the SAINTOS wallpaper.
+if [ -d /usr/share/sddm/themes/breeze ]; then
+    printf '[General]\nbackground=/usr/share/wallpapers/SAINTOS/contents/images/1920x1080.png\ntype=image\n' \
+        > /usr/share/sddm/themes/breeze/theme.conf.user
+fi
 
 #--------------------------------------------------------------------------
 # Artwork: icons, wallpaper, boot splash

@@ -4,4 +4,4 @@ accentColorFromWallpaper=false
 ColorScheme=BreezeDark
 
 [KDE]
-LookAndFeelPackage=org.kde.breezedark.desktop
+LookAndFeelPackage=org.saintos.desktop

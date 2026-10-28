@@ -163,8 +163,14 @@ echo "description staged in $D"
 #--------------------------------------------------------------------------
 log "5/7 KIWI build (SAINTOS-Live) — this takes a while"
 VOLID="SAINTOS-${fedora_release}-x86_64"
+# KIWI is started through /usr/bin/python3 rather than /usr/bin/kiwi-ng: kiwi-selinux 11.1.1 confines
+# kiwi-ng as kiwi_t, and with selinux-policy 43.3 that domain may not transition to rpm_script_t, so
+# every RPM %sysusers scriptlet in the image root fails (exit 127; AVC "denied { transition }
+# kiwi_t -> rpm_script_t"). Via python3 KIWI runs unconfined, like any other sudo command;
+# SELinux stays enforcing on the host and the image is relabelled by KIWI as usual.
+KIWI=(python3 -sP -c 'import sys; from kiwi.kiwi import main; sys.argv[0] = "kiwi-ng"; sys.exit(main())')
 set +e
-$SUDO kiwi-ng --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
+$SUDO "${KIWI[@]}" --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
   --description "$D" --target-dir "$WORK/out" \
   --set-type-attr "volid=$VOLID" --set-type-attr "application_id=SAINTOS" \
   --set-type-attr "publisher=SAINTOS (unofficial Fedora Remix)" 2>&1 | tee "$WORK/kiwi.log"
@@ -190,7 +196,7 @@ python3.12 - "$DIST/BUILD_INFO.json" "$D/root/usr/share/saintos/build-info.json"
 import json, sys
 info = json.load(open(sys.argv[2]))
 info.update({"iso": "SAINTOS-x86_64.iso", "iso_bytes": $SIZE, "sha256": "$SHA", "volume_id": "$VOLID",
-             "kiwi_version": "$(kiwi-ng --version 2>/dev/null | head -n1)",
+             "kiwi_version": "$("${KIWI[@]}" --version 2>/dev/null | head -n1)",
              "packages_file": "SAINTOS-x86_64.packages", "python_lock": "saint-runtime.lock"})
 json.dump(info, open(sys.argv[1], "w"), indent=2)
 PY

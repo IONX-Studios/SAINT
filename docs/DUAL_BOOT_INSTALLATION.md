@@ -3,9 +3,23 @@
 A human checklist. **No SAINT script partitions, formats, resizes, changes boot entries, Secure Boot
 or TPM.** You do each step yourself, and you can stop at any checkpoint.
 
-> First install a **standard Fedora KDE Plasma Desktop** from the official ISO
-> (https://fedoraproject.org/kde/). A custom SAINTOS image isn't recommended on this laptop until it
-> has passed VM install and boot tests (Milestone G).
+> **Which ISO?** The SAINTOS ISO (`dist/SAINTOS-x86_64.iso`) is Fedora KDE's own installer and live
+> system with SAINT added, so every step below is the same for it and for the official Fedora KDE ISO.
+> **Use the SAINTOS ISO on this laptop only after it has passed the VM tests in
+> [SAINTOS_RELEASE_STATUS.md](SAINTOS_RELEASE_STATUS.md)** (live boot, install to a virtual disk,
+> installed boot) **and you've read that page's known limitations.** Until then, or if in doubt, use
+> the official Fedora KDE ISO and add SAINT afterwards with `packaging/linux/setup_fedora.sh`.
+
+## Try it in a VM first (no risk to the laptop)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\linux\vm\boot_test.ps1 -Iso dist\SAINTOS-x86_64.iso -Keep
+```
+
+This makes a throwaway VirtualBox VM with its own empty virtual disk, boots the ISO, and reports
+PASS only when SAINTOS itself says the desktop is up and SAINT's self-test passed. To look around,
+open the `SAINTOS-test` VM in VirtualBox. "Install to Hard Drive" inside the VM installs onto the
+**virtual** disk only.
 
 ## 0. What the preflight found on this laptop (2026-10-28, from Windows)
 
@@ -66,7 +80,9 @@ Reboot Windows once to confirm it still starts normally.
 
 ## 3. Install Fedora KDE
 
-1. Write the Fedora KDE ISO to a USB stick with Fedora Media Writer. Check the ISO's checksum.
+1. Check the ISO first: `Get-FileHash dist\SAINTOS-x86_64.iso -Algorithm SHA256` must match
+   `dist\SHA256SUMS` (or the official Fedora CHECKSUM file for the Fedora ISO). Then write it to a USB
+   stick with Fedora Media Writer → *Select .iso file*. **This erases the stick.**
 2. Boot the stick (Lenovo: **F12** boot menu at power-on). Pick the UEFI entry for the USB.
 3. In the live session, run `lsblk` and confirm you see `nvme0n1` with the four Windows partitions
    and the free space.
@@ -99,7 +115,8 @@ packaging/linux/setup_fedora.sh
 packaging/linux/run_tests.sh
 ```
 
-Then check by hand and note results in `docs/MANUAL_TESTING.md`: Wi-Fi, Bluetooth, speakers and
+On SAINTOS, SAINT is already installed in `/opt/saint` (skip `setup_fedora.sh`), and
+`saintos-diagnose` collects the same report. Then check by hand and note results in `docs/MANUAL_TESTING.md`: Wi-Fi, Bluetooth, speakers and
 mic, webcam, touchpad gestures, brightness keys, suspend/resume (lid close), external monitor (HDMI
 and USB-C), and that Windows still boots from GRUB afterwards.
 
@@ -110,4 +127,5 @@ and USB-C), and that Windows still boots from GRUB afterwards.
 | Laptop boots straight into Windows | F12 → pick *Fedora*. In firmware setup, put *Fedora* first in boot order (this only changes the order). |
 | BitLocker asks for the recovery key | Enter the key saved in step 1. Expected once after boot changes. |
 | GRUB broken / Fedora won't boot | F12 → *Windows Boot Manager* still works. Boot the Fedora USB to repair Fedora. |
+| SAINTOS boots to a black screen | GRUB → Troubleshooting → *basic graphics mode*; NVIDIA laptops may need the RPM Fusion driver after install. |
 | Want Fedora gone | In Windows Disk Management delete **only** the Fedora partitions and extend C:. Remove the *Fedora* entry from the EFI partition later with care, or leave it (harmless). Get help before touching the EFI partition. |

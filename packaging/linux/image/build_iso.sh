@@ -111,6 +111,9 @@ python3.12 -m venv "$WORK/lockvenv"
 "$WORK/lockvenv/bin/python" -m pip freeze --all --exclude pip --exclude setuptools --exclude wheel \
   | sed 's/ @ file:.*//' > "$WH/saint-runtime.lock"
 grep -q '^PySide6-Essentials==' "$WH/saint-runtime.lock" || die "lock file has no PySide6-Essentials"
+! grep -qiE '^(torch|nvidia-|spacy-curated-transformers)' "$WH/saint-runtime.lock"   || die "the lock pulls PyTorch/CUDA ($(grep -ciE '^(torch|nvidia-)' "$WH/saint-runtime.lock") packages); check saint-runtime.txt"
+# Fail here (minutes) rather than inside KIWI (much later) if SAINT's voice/UI stack can't import.
+QT_QPA_PLATFORM=offscreen "$WORK/lockvenv/bin/python" -c   "import PySide6.QtWidgets, numpy, onnxruntime, faster_whisper, kokoro_onnx, misaki.en, en_core_web_sm, keyring, secretstorage, jeepney"   || die "SAINT's Python runtime doesn't import in the lock venv"
 mkdir -p "$D/root/opt/saint"
 cp -a "$WH" "$D/root/opt/saint/wheelhouse"
 echo "$(wc -l < "$WH/saint-runtime.lock") Python packages locked"

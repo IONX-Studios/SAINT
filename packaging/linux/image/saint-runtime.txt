@@ -12,8 +12,14 @@ soundfile>=0.12.1
 onnxruntime>=1.16.0
 faster-whisper>=1.0.3
 kokoro-onnx>=0.4.9
+# Kokoro's text -> phonemes: misaki with its English pieces listed one by one. misaki[en] would also
+# pull spacy-curated-transformers -> PyTorch + ~3 GB of CUDA libraries, which SAINT never uses
+# (it loads spaCy's small en_core_web_sm model, not a transformer one).
+misaki>=0.7.0
+num2words>=0.5.13
+spacy>=3.8.0,<3.9.0            # en_core_web_sm 3.8.0 requires spaCy 3.8.x
 en_core_web_sm==3.8.0          # fetched as a wheel from spaCy's GitHub release by build_iso.sh
-misaki[en]>=0.7.0
+phonemizer-fork>=3.3.2
 espeakng_loader>=0.2.4
 phonemizer>=3.2.0
 pillow>=10.0.0

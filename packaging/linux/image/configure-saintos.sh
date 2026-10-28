@@ -23,7 +23,7 @@ rm -rf "$SAINT/wheelhouse"
 ( cd "$SAINT/app" && QT_QPA_PLATFORM=offscreen "$SAINT/venv/bin/python" - <<'PY'
 import importlib, sys
 mods = ["PySide6.QtWidgets", "PySide6.QtSvg", "numpy", "requests", "psutil", "sounddevice", "soundfile",
-        "onnxruntime", "faster_whisper", "kokoro_onnx", "keyring", "secretstorage", "jeepney", "segno",
+        "onnxruntime", "faster_whisper", "kokoro_onnx", "misaki.en", "en_core_web_sm", "keyring", "secretstorage", "jeepney", "segno",
         "zeroconf", "cryptography", "PIL", "core.paths", "core.platform_caps", "modules.desktop.linux.kwin",
         "ui.saintos_center"]
 bad = []
@@ -35,6 +35,11 @@ for m in mods:
 if bad:
     print("SAINTOS image: SAINT runtime imports failed:\n  " + "\n  ".join(bad), file=sys.stderr)
     sys.exit(1)
+import importlib.util
+for heavy in ("torch", "spacy_curated_transformers"):
+    if importlib.util.find_spec(heavy) is not None:
+        print(f"SAINTOS image: {heavy} got installed; it isn't needed and makes the ISO GBs larger", file=sys.stderr)
+        sys.exit(1)
 import core.paths as p
 assert p.system_install(), "SAINT in /opt must use the XDG data folder"
 print("SAINTOS image: SAINT runtime imports OK")

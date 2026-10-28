@@ -83,3 +83,46 @@ levels they map to, dependencies, config schema. Installing or activating one re
 approval. Each extension runs in its own process with no access to secrets, can only reach SAINT
 through declared tools, and can be disabled, rolled back or uninstalled. A failed generation attempt
 stays in its git branch / staging folder and never touches the active install.
+
+## Image architecture: decided (2026-10-28)
+
+**SAINTOS 0.1 is a conventional Fedora live installer ISO, built with KIWI from Fedora's own image
+descriptions**: the same `kiwi-descriptions` repository (branch `f44`, pinned commit in
+`packaging/linux/image/UPSTREAM`) and the same `KDE-Desktop-Live` profile Fedora uses to compose its
+official KDE Plasma ISO, plus one SAINTOS profile on top.
+
+| Option considered | Verdict |
+|---|---|
+| **KIWI + Fedora's descriptions, `SAINTOS-Live` profile** | **Chosen.** Fedora's supported tooling for live media since F40. Inherits the tested installer (Anaconda live), live boot (dracut dmsquash-live, EROFS root), UEFI/Secure Boot chain (shim + signed GRUB/kernel) and update model (dnf). SAINTOS edits nothing upstream; it adds `saintos.xml`, a rootfs overlay and a hook at the end of `config.sh`. |
+| livemedia-creator + kickstarts | Fedora's previous tooling; the spin kickstarts are no longer how Fedora builds live media. |
+| bootc / image-based (Kinoite-style) | Atomic updates and rollback are attractive, but the installer path for dual boot next to Windows, and recovery, would have to be built and validated separately. Kept for a later release, not combined with this one. |
+| Remastering the downloaded ISO | Not reproducible; would bypass package signatures and Fedora's build logic. |
+
+### How the layer is put together
+
+```
+packaging/linux/image/
+  UPSTREAM               kiwi-descriptions URL + pinned commit + Fedora release
+  saintos.xml            profile SAINTOS-Live (requires KDE-Desktop-Live) + SAINT's system packages
+  saint-runtime.txt      SAINT's Python packages -> wheelhouse + exact lock at build time
+  configure-saintos.sh   runs inside the image: venv (offline), import check, os-release, icons,
+                         wallpaper, Plymouth theme, services. Any failure fails the build.
+  build_iso.sh           the entry point (host checks -> dist/)
+  validate_iso.sh        read-only structural checks of the ISO and its root filesystem
+packaging/linux/rootfs/  files copied into the image as-is (launchers, units, KDE defaults, first run)
+packaging/linux/branding/make_branding.py   artwork generated from code
+packaging/linux/vm/      VirtualBox build/test VMs, boot tests, install-test kickstart
+```
+
+### Updates, rollback, recovery (0.1)
+
+- **Fedora packages:** dnf / Discover, from Fedora's repositories, signed by Fedora. SAINTOS adds no
+  third-party repository.
+- **SAINT (`/opt/saint`):** replaced by installing a newer SAINTOS build. There's no in-place SAINT
+  updater yet. User data in `~/.local/share/SAINT` is never touched by either.
+- **Rollback:** the installer's default is btrfs, so a manual `btrfs subvolume snapshot` works, but
+  no snapshot tool is configured by default. Kernel rollback works the Fedora way: the previous
+  kernels stay in the GRUB menu.
+- **Recovery:** the ISO's live session (Troubleshooting → basic graphics) and Fedora's rescue kernel entry.
+- **Branding drift:** `/etc/os-release` is SAINTOS's. A `fedora-release-common` update may restore
+  Fedora's copy; this is cosmetic (`ID=fedora` is kept so dnf and `$releasever` behave).

@@ -115,3 +115,9 @@ def test_branding_generator_runs(tmp_path):
     assert Image.open(tmp_path / "wallpaper" / "SAINTOS-640x360.png").size == (640, 360)
     assert Image.open(tmp_path / "logo" / "saintos-logo-256.png").mode == "RGBA"
     assert (tmp_path / "plymouth" / "watermark.png").exists()
+
+
+def test_boot_report_selftest_is_offline():
+    text = (FS / "usr/libexec/saintos/boot-report").read_text()
+    assert "SAINT_SELFTEST_NO_VOICE=1" in text, "the boot test must not download voice models"
+    assert "SAINT_DATA_DIR=" in text and "timeout " in text

@@ -19,7 +19,7 @@ for _ in $(seq 1 120); do
     if { [ "$type" = wayland ] || [ "$type" = x11 ]; } && [ "$state" = active ]; then
       say "SAINTOS-DESKTOP-OK user=$user session=$sid type=$type"
       tmp=$(mktemp -d)
-      if out=$(cd /opt/saint/app && QT_QPA_PLATFORM=offscreen SAINT_DATA_DIR="$tmp" HOME="$tmp" \
+      if out=$(cd /opt/saint/app && QT_QPA_PLATFORM=offscreen SAINT_SELFTEST_NO_VOICE=1 SAINT_DATA_DIR="$tmp" HOME="$tmp" \
                timeout 180 /opt/saint/venv/bin/python app.py --selftest "$tmp/selftest.json" 2>&1); then
         say "SAINTOS-SAINT-OK"
       else

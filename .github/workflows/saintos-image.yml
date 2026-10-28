@@ -1,0 +1,94 @@
+name: SAINTOS image
+
+# Builds the SAINTOS live ISO in a privileged Fedora container, validates it, and boots it under
+# QEMU/KVM. Manual or on pushes to SAINTOS branches; artifacts only — never publishes a release.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["saintos/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  linux-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y libportaudio2 libsndfile1 libegl1 libxkbcommon0 libgl1 tesseract-ocr
+      - name: Python packages (Linux runtime + pytest)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r packaging/linux/image/saint-runtime.txt \
+            "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" pytest
+      - name: SAINT tests on Linux
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q -rfE --tb=short -p no:randomly 2>&1 | tee pytest-linux.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-linux
+          path: pytest-linux.txt
+
+  build-iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Free disk space (the build needs ~30 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build in Fedora 44 (privileged, for KIWI's loop devices)
+        run: |
+          docker run --rm --privileged -v /dev:/dev -v "$PWD:/src" -w /src fedora:44 bash -euxc '
+            dnf install -y kiwi kiwi-systemdeps distribution-gpg-keys git python3.12 xorriso erofs-utils \
+                           desktop-file-utils dracut
+            git config --global --add safe.directory /src
+            packaging/linux/image/build_iso.sh --workdir /var/tmp/saintos-build --dist /src/dist
+          '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SAINTOS-x86_64-${{ github.sha }}
+          path: |
+            dist/SAINTOS-x86_64.iso
+            dist/SHA256SUMS
+            dist/BUILD_INFO.json
+            dist/RELEASE_NOTES.md
+            dist/VALIDATION.txt
+            dist/SAINTOS-x86_64.packages
+            dist/saint-runtime.lock
+          if-no-files-found: error
+          retention-days: 14
+
+  boot-test:
+    needs: build-iso
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: SAINTOS-x86_64-${{ github.sha }}
+          path: dist
+      - name: QEMU + OVMF
+        run: |
+          sudo apt-get update && sudo apt-get install -y qemu-system-x86 ovmf socat
+          sudo chmod 666 /dev/kvm || true
+      - name: Check the ISO checksum
+        run: cd dist && sha256sum -c SHA256SUMS
+      - name: Boot test (UEFI, serial boot report)
+        run: packaging/linux/vm/qemu_boot_test.sh dist/SAINTOS-x86_64.iso 1500
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-test-${{ github.sha }}
+          path: dist/qemu-boot/

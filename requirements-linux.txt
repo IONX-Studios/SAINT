@@ -1,0 +1,15 @@
+# SAINT on Linux (Fedora KDE Plasma / SAINTOS)
+#
+# Everything in requirements.txt that isn't Windows-only (those carry a
+# sys_platform marker and are skipped), plus the Linux integrations.
+# Installed by packaging/linux/setup_fedora.sh into .venv.
+#
+# System packages (dnf) the Python packages need are listed in
+# packaging/linux/fedora-packages.txt.
+
+-r requirements.txt
+
+# Secrets (Spotify login, Link key, API keys) go to the freedesktop Secret Service
+# (KWallet on Plasma 6, or GNOME Keyring) through keyring's SecretService backend.
+SecretStorage>=3.3
+jeepney>=0.8

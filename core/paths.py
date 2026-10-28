@@ -46,13 +46,25 @@ _SHIPPED_DATA = {"wake", "tts"}
 
 
 def _local_app_data() -> Path:
+    """Where per-user app data lives: %LOCALAPPDATA% on Windows, $XDG_DATA_HOME (~/.local/share) on Linux."""
+    if os.name != "nt":
+        return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
     return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
 
 
 def installed_exe() -> Optional[Path]:
     """SAINT.exe from the installer (%LOCALAPPDATA%\\Programs\\SAINT), when it's installed."""
+    if os.name != "nt":
+        return None
     exe = _local_app_data() / "Programs" / "SAINT" / "SAINT.exe"
     return exe if exe.exists() else None
+
+
+def system_install() -> bool:
+    """SAINT installed as a Linux package (/usr or /opt, not writable by the user): data goes to XDG."""
+    if os.name == "nt" or FROZEN:
+        return False
+    return PROJECT_ROOT.parts[1:2] in (("usr",), ("opt",))
 
 
 def has_user_data(folder: Path) -> bool:
@@ -68,7 +80,7 @@ def base_data_dir() -> Path:
     override = os.environ.get("SAINT_DATA_DIR", "").strip()
     if override:
         path = Path(override)
-    elif FROZEN or installed_exe() is not None or has_user_data(_local_app_data() / "SAINT"):
+    elif FROZEN or system_install() or installed_exe() is not None or has_user_data(_local_app_data() / "SAINT"):
         # v0.4: a run from source also uses %LOCALAPPDATA%\SAINT once SAINT has data there, so a new
         # checkout never starts with an empty SAINT (core/migration.py brings older data across).
         path = _local_app_data() / "SAINT"

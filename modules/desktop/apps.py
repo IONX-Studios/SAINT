@@ -11,15 +11,19 @@ resolved against a catalogue of things that are actually installed:
   3. Start Menu shortcuts      (.lnk files for all users + current user)
   4. Store / UWP apps          (Get-StartApps -> shell:AppsFolder\\<AppID>)
   5. App Paths registry        (chrome.exe, msedge.exe, ...)
+  6. Linux: XDG desktop entries ($XDG_DATA_HOME / $XDG_DATA_DIRS /applications,
+     Flatpak exports) -> launched with `gio launch` / `kioclient exec`
 
 and launched with os.startfile / an argument list (no shell=True).
 """
 
+import configparser
 import difflib
 import json
 import logging
 import os
 import re
+import shutil
 import struct
 import subprocess
 import threading
@@ -39,7 +43,19 @@ class AppEntry:
 
 
 # name -> (kind, target, process hint)
-_BUILTIN: Dict[str, tuple] = {
+_BUILTIN_LINUX: Dict[str, tuple] = {
+    # KDE Plasma defaults; anything else comes from the desktop entries.
+    "files": ("exe", "dolphin", "dolphin"),
+    "file manager": ("exe", "dolphin", "dolphin"),
+    "terminal": ("exe", "konsole", "konsole"),
+    "settings": ("exe", "systemsettings", "systemsettings"),
+    "system settings": ("exe", "systemsettings", "systemsettings"),
+    "task manager": ("exe", "plasma-systemmonitor", "plasma-systemmonitor"),
+    "system monitor": ("exe", "plasma-systemmonitor", "plasma-systemmonitor"),
+    "calculator": ("exe", "kcalc", "kcalc"),
+    "text editor": ("exe", "kate", "kate"),
+}
+_BUILTIN_WINDOWS: Dict[str, tuple] = {
     "notepad": ("exe", "notepad.exe", "notepad"),
     "calculator": ("exe", "calc.exe", "calculator"),
     "calc": ("exe", "calc.exe", "calculator"),
@@ -55,6 +71,7 @@ _BUILTIN: Dict[str, tuple] = {
     "display settings": ("uri", "ms-settings:display", "systemsettings"),
     "bluetooth settings": ("uri", "ms-settings:bluetooth", "systemsettings"),
 }
+_BUILTIN: Dict[str, tuple] = _BUILTIN_WINDOWS if os.name == "nt" else _BUILTIN_LINUX
 
 # Common spoken names -> Start Menu / executable names
 _SYNONYMS = {
@@ -90,6 +107,47 @@ _EXTRA_SHORTCUT_DIRS = [
     os.path.join(os.path.expanduser("~"), "Desktop"),
     os.path.join(os.environ.get("PUBLIC", r"C:\Users\Public"), "Desktop"),
 ]
+
+
+
+def _xdg_application_dirs() -> List[str]:
+    """Where Linux desktops keep .desktop files, the user's own first (they override the system's)."""
+    home = os.path.expanduser("~")
+    data_home = os.environ.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share")
+    data_dirs = (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":")
+    bases = [data_home] + data_dirs + [os.path.join(data_home, "flatpak", "exports", "share"),
+                                       "/var/lib/flatpak/exports/share"]
+    return list(dict.fromkeys(os.path.join(b, "applications") for b in bases if b))
+
+
+def read_desktop_entry(path: str) -> Optional[AppEntry]:
+    """A launchable app from a freedesktop .desktop file, or None (hidden, not an app, unreadable)."""
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    parser.optionxform = str                               # keys are case-sensitive ("Name" vs "name[de]")
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            parser.read_file(f)
+    except (OSError, configparser.Error) as e:
+        log.info("desktop.apps.bad_desktop_entry %s %s", path, e)
+        return None
+    if not parser.has_section("Desktop Entry"):
+        return None
+    sec = parser["Desktop Entry"]
+    if sec.get("Type", "Application") != "Application":
+        return None
+    if sec.get("NoDisplay", "false").lower() == "true" or sec.get("Hidden", "false").lower() == "true":
+        return None
+    name = (sec.get("Name") or "").strip()
+    exec_line = (sec.get("Exec") or "").strip()
+    if not name or not exec_line:
+        return None
+    program = os.path.basename(exec_line.split()[0].strip('"'))
+    if program == "flatpak":                               # "flatpak run com.spotify.Client" -> spotify
+        app_id = next((a for a in exec_line.split()[1:] if "." in a and not a.startswith("-")), "")
+        program = app_id.rsplit(".", 1)[-1] if app_id else program
+    hint = (sec.get("StartupWMClass") or program or name).lower()
+    return AppEntry(name, "desktop", path, "desktop_entry", process_hint=hint)
+
 
 _IGNORED_SHORTCUTS = re.compile(r"\b(uninstall|readme|help|documentation|release notes|website|license)\b", re.I)
 
@@ -208,8 +266,11 @@ class AppCatalog:
             if self._entries is not None:
                 return self._entries
             entries: Dict[str, AppEntry] = {}
-            self._scan_start_menu(entries)
-            self._scan_start_apps(entries)
+            if os.name == "nt":
+                self._scan_start_menu(entries)
+                self._scan_start_apps(entries)
+            else:
+                self._scan_desktop_entries(entries)
             self._entries = entries
             log.info("desktop.apps.catalog entries=%d", len(entries))
             return entries
@@ -251,6 +312,20 @@ class AppCatalog:
                 key = _norm(name)
                 entries.setdefault(key, AppEntry(name, "path", os.path.join(base, f), "shortcut",
                                                  process_hint=key.split(" ")[0]))
+
+    def _scan_desktop_entries(self, entries: Dict[str, AppEntry], dirs: Optional[List[str]] = None):
+        """Linux: installed apps from their desktop entries (the same list KDE's launcher shows)."""
+        for base in dirs if dirs is not None else _xdg_application_dirs():
+            if not os.path.isdir(base):
+                continue
+            for root, _dirs, files in os.walk(base):
+                for f in sorted(files):
+                    if not f.endswith(".desktop"):
+                        continue
+                    entry = read_desktop_entry(os.path.join(root, f))
+                    if entry is None or _IGNORED_SHORTCUTS.search(entry.name):
+                        continue
+                    entries.setdefault(_norm(entry.name), entry)
 
     def _scan_start_apps(self, entries: Dict[str, AppEntry]):
         if os.name != "nt":
@@ -418,8 +493,29 @@ def process_names_for(name: str, entry: Optional[AppEntry] = None) -> set:
     return {p for p in procs if p}
 
 
+def _linux_launch_command(entry: AppEntry) -> List[str]:
+    """The argument list that starts ``entry`` on Linux (no shell). Raises when nothing can launch it."""
+    if entry.kind == "exe":
+        return [entry.target]
+    if entry.kind == "desktop":
+        if shutil.which("gio"):
+            return ["gio", "launch", entry.target]
+        if shutil.which("kioclient"):
+            return ["kioclient", "exec", entry.target]
+        if shutil.which("gtk-launch"):
+            return ["gtk-launch", os.path.basename(entry.target)]
+        raise FileNotFoundError("No desktop-entry launcher found (install glib2 for `gio`).")
+    if shutil.which("xdg-open"):
+        return ["xdg-open", entry.target]
+    raise FileNotFoundError("xdg-open is missing (install xdg-utils).")
+
+
 def launch(entry: AppEntry):
     """Launch a resolved app without a shell."""
+    if os.name != "nt":
+        subprocess.Popen(_linux_launch_command(entry), start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
     if entry.kind == "appsfolder":
         subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{entry.target}"],
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))

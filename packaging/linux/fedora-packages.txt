@@ -1,0 +1,42 @@
+# Fedora system packages for SAINT (one per line, "#" comments).
+# Installed by setup_fedora.sh with `dnf install --skip-unavailable`, so a name
+# that a Fedora release renamed is reported instead of aborting the install.
+# Verify against your release with: dnf info <name>
+
+# Python toolchain (SAINT targets 3.12; 3.13 also works for the core — see docs/LINUX_PORT_PLAN.md)
+python3.12
+python3.12-devel
+gcc
+gcc-c++
+
+# Audio: sounddevice -> PortAudio, soundfile -> libsndfile, PipeWire CLI
+portaudio
+libsndfile
+wireplumber
+pipewire-utils
+
+# Kokoro phonemes for unknown words; fallback voice when Kokoro isn't downloaded
+espeak-ng
+
+# Qt (PySide6 wheels) runtime pieces that are not always on a minimal install
+libxkbcommon
+xcb-util-cursor
+mesa-libGL
+
+# Desktop integration (core/platform_caps.py explains what each one enables)
+qt6-qttools
+glib2
+xdg-utils
+libnotify
+wl-clipboard
+playerctl
+spectacle
+brightnessctl
+ydotool
+tesseract
+tesseract-langpack-eng
+python3-pyatspi
+
+# Preflight / diagnostics (read-only)
+pciutils
+mokutil

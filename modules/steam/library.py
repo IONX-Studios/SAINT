@@ -50,6 +50,16 @@ class Game:
                 "registered": self.registered, "path": self.path, "last_played": self.last_played}
 
 
+def _guesses() -> List[str]:
+    if os.name == "nt":
+        return [r"C:\Program Files (x86)\Steam", r"C:\Program Files\Steam"]
+    home = os.path.expanduser("~")
+    data = os.environ.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share")
+    # Native package, the ~/.steam link older installs use, and the Flatpak.
+    return [os.path.join(data, "Steam"), os.path.join(home, ".steam", "steam"),
+            os.path.join(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam")]
+
+
 def steam_path() -> Optional[str]:
     try:
         import winreg
@@ -57,9 +67,9 @@ def steam_path() -> Optional[str]:
             p = winreg.QueryValueEx(k, "SteamPath")[0]
             if p and os.path.isdir(p):
                 return os.path.normpath(p)
-    except OSError:
+    except (ImportError, OSError):                 # ImportError: not Windows
         pass
-    for guess in (r"C:\Program Files (x86)\Steam", r"C:\Program Files\Steam"):
+    for guess in _guesses():
         if os.path.isdir(guess):
             return guess
     return None

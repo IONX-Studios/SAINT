@@ -1,0 +1,21 @@
+[Desktop Entry]
+Type=Application
+Name=SAINT
+GenericName=AI Assistant
+Comment=Local, voice-first AI assistant
+Exec=@SAINT_ROOT@/run.sh
+Icon=@SAINT_ROOT@/SAINT.png
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=assistant;voice;ai;saint;
+StartupWMClass=SAINT
+SingleMainWindow=true
+Actions=Background;Diagnose;
+
+[Desktop Action Background]
+Name=Start in the background
+Exec=@SAINT_ROOT@/run.sh --background
+
+[Desktop Action Diagnose]
+Name=Collect diagnostics
+Exec=@SAINT_ROOT@/packaging/linux/diagnose.sh

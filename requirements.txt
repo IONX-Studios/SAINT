@@ -1,5 +1,9 @@
 # SAINT — Python 3.12 target for Windows builds, Windows 11 runtime
 #
+# Linux (Fedora KDE / SAINTOS): the Windows-only packages below carry a
+# `sys_platform == "win32"` marker and are skipped; install with
+# packaging/linux/setup_fedora.sh, which adds requirements-linux.txt.
+#
 # The end-user EXE/installer does not require Python. Python 3.12 is only the
 # reproducible build environment used by GitHub Actions.
 #
@@ -34,22 +38,22 @@ espeakng_loader>=0.2.4       # espeak-ng for out-of-dictionary words (e.g. names
 phonemizer>=3.2.0
 
 # Desktop control / screen awareness (Windows)
-pyautogui>=0.9.54
-pywin32>=306
-uiautomation>=2.0.18
+pyautogui>=0.9.54; sys_platform == "win32"   # Linux: ydotool / xdotool (core/platform_caps.py)
+pywin32>=306; sys_platform == "win32"
+uiautomation>=2.0.18; sys_platform == "win32"
 pillow>=10.0.0
-pycaw>=20240316              # per-app volume, mic mute, switching audio output (Windows Core Audio)
+pycaw>=20240316; sys_platform == "win32"              # per-app volume, mic mute, switching audio output (Windows Core Audio)
 
 # What's playing in any app (mini player): Windows' media controls
-winrt-runtime>=3.0
-winrt-Windows.Media.Control>=3.0
-winrt-Windows.Foundation>=3.0
-winrt-Windows.Foundation.Collections>=3.0
-winrt-Windows.Storage.Streams>=3.0
+winrt-runtime>=3.0; sys_platform == "win32"
+winrt-Windows.Media.Control>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=3.0; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=3.0; sys_platform == "win32"
 # Reading text on screen when an app exposes none (agent observation): Windows' own OCR, local
-winrt-Windows.Media.Ocr>=3.0
-winrt-Windows.Graphics.Imaging>=3.0
-winrt-Windows.Globalization>=3.0
+winrt-Windows.Media.Ocr>=3.0; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging>=3.0; sys_platform == "win32"
+winrt-Windows.Globalization>=3.0; sys_platform == "win32"
 
 # Spotify login tokens are stored in the Windows Credential Manager
 keyring>=25.0.0

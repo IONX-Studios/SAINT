@@ -89,3 +89,20 @@ def test_openai_compatible_connection_is_really_tested():
     res = OpenAICompatibleProvider().test_connection("http://127.0.0.1:9/v1", timeout=2)
     assert res["connected"] is False and "no answer" in res["error"]
     assert OpenAICompatibleProvider().test_connection("", timeout=1)["connected"] is False
+
+
+def test_api_keys_live_in_the_secret_store_not_config_json(tmp_path):
+    import json as _json
+    import keyring
+    from core.config import Config
+    from core.paths import keyring_service
+    path = tmp_path / "config.json"
+    path.write_text(_json.dumps({"config_version": 8, "ai": {"api_key": "sk-old-plaintext"}}), encoding="utf-8")
+    c = Config(path)                                                   # an old config with a plaintext key
+    assert c.get("ai.api_key") == "sk-old-plaintext"
+    assert _json.loads(path.read_text())["ai"]["api_key"] == ""        # moved out of the file
+    assert keyring.get_password(keyring_service(), "ai.api_key") == "sk-old-plaintext"
+    c.set("ai.api_key", "sk-new")
+    assert "sk-new" not in path.read_text() and c.get("ai.api_key") == "sk-new"
+    c.set("ai.api_key", "")
+    assert c.get("ai.api_key", "") == "" and keyring.get_password(keyring_service(), "ai.api_key") is None

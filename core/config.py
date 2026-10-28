@@ -7,10 +7,20 @@ with a full voice configuration section.
 """
 
 import json
+import logging
 import os
 import threading
 
-from core.paths import data_path
+from core.paths import data_path, keyring_service
+
+log = logging.getLogger("saint.config")
+
+# Settings that are secrets: kept in the OS secret store (Windows Credential Manager, the Secret
+# Service / KWallet on Linux) through keyring, never in config.json. config.get()/set() hide the
+# difference, so callers keep using config.get("ai.api_key"). A value found in an older config.json
+# is moved into the secret store on load. If no secret store works, the value stays in the file
+# (as before) and a warning is logged once.
+SECRET_KEYS = ("ai.api_key", "web.api_key")
 
 CONFIG_VERSION = 8
 
@@ -634,7 +644,10 @@ class Config:
         self._path = str(path or data_path("config.json"))
         self._lock = threading.RLock()
         self._data = {}
+        self._secrets = {}                 # cache of values read from / written to the secret store
+        self._secret_store_failed = False
         self._load_or_create()
+        self._move_secrets_out_of_file()
 
     # ------------------------------------------------------------------ #
     # Persistence
@@ -684,12 +697,97 @@ class Config:
 
     def reload(self):
         self._load_or_create()
+        self._secrets.clear()
+        self._move_secrets_out_of_file()
+
+    # ------------------------------------------------------------------ #
+    # Secrets
+    # ------------------------------------------------------------------ #
+    def _secret_store(self):
+        if self._secret_store_failed:
+            return None
+        try:
+            import keyring
+            return keyring
+        except Exception as e:
+            self._secret_store_failed = True
+            log.warning("config.secret_store_unavailable %s: secrets stay in config.json", type(e).__name__)
+            return None
+
+    def _secret_read(self, key):
+        """The stored secret, "" when there is none, or None when the secret store can't be used."""
+        if key in self._secrets:
+            return self._secrets[key]
+        kr = self._secret_store()
+        if kr is None:
+            return None
+        try:
+            value = kr.get_password(keyring_service(), key) or ""
+        except Exception as e:
+            self._secret_store_failed = True
+            log.warning("config.secret_read_failed %s %s", key, type(e).__name__)
+            return None
+        self._secrets[key] = value
+        return value
+
+    def _secret_write(self, key, value) -> bool:
+        kr = self._secret_store()
+        if kr is None:
+            return False
+        try:
+            if value:
+                kr.set_password(keyring_service(), key, str(value))
+            else:
+                try:
+                    kr.delete_password(keyring_service(), key)
+                except Exception:
+                    pass                         # nothing stored: nothing to delete
+        except Exception as e:
+            self._secret_store_failed = True
+            log.warning("config.secret_write_failed %s %s", key, type(e).__name__)
+            return False
+        self._secrets[key] = str(value or "")
+        return True
+
+    def _file_value(self, dotted_key, default=None):
+        node = self._data
+        for p in dotted_key.split("."):
+            if isinstance(node, dict) and p in node:
+                node = node[p]
+            else:
+                return default
+        return node
+
+    def _set_file_value(self, dotted_key, value):
+        parts = dotted_key.split(".")
+        with self._lock:
+            node = self._data
+            for p in parts[:-1]:
+                if not isinstance(node.get(p), dict):
+                    node[p] = {}
+                node = node[p]
+            node[parts[-1]] = value
+
+    def _move_secrets_out_of_file(self):
+        moved = False
+        for key in SECRET_KEYS:
+            value = self._file_value(key, "")
+            if value and self._secret_write(key, value):
+                self._set_file_value(key, "")
+                moved = True
+                log.info("config.secret_moved_to_store %s", key)
+        if moved:
+            self.save()
 
     # ------------------------------------------------------------------ #
     # Access
     # ------------------------------------------------------------------ #
     def get(self, dotted_key, default=None):
         """e.g. config.get('voice.stt_model')"""
+        if dotted_key in SECRET_KEYS:
+            stored = self._secret_read(dotted_key)
+            if stored:
+                return stored
         parts = dotted_key.split(".")
         node = self._data
         for p in parts:
@@ -700,6 +798,8 @@ class Config:
         return node
 
     def set(self, dotted_key, value, persist=True):
+        if dotted_key in SECRET_KEYS and self._secret_write(dotted_key, value):
+            value = ""                         # the file never holds the secret itself
         parts = dotted_key.split(".")
         with self._lock:
             node = self._data

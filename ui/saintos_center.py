@@ -334,7 +334,7 @@ def build_window(start_page: str = "Welcome"):
     ai_status.setWordWrap(True)
     v.addWidget(ai_status)
     note = QLabel("Hosted providers (OpenAI-compatible): the API key is still entered in SAINT's own Settings and "
-                  "kept in its config file. Moving it to the Secret Service, and spending limits, are planned "
+                  "kept in KWallet (Secret Service), never in the config file. Spending limits are planned "
                   "(docs/SAINTOS_RELEASE_STATUS.md).")
     note.setWordWrap(True)
     note.setStyleSheet("color: palette(mid);")

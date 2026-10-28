@@ -37,9 +37,10 @@ verified hasn't been shown to work. Updated 2026-10-28.
 
 ## Known defects and limitations
 
-- `OpenAICompatibleProvider.test_connection()` always reports success (a fake result). The Control
-  Center doesn't rely on it; fix planned with provider management.
-- Hosted-provider API keys are stored in SAINT's `config.json` (plaintext), not the Secret Service.
+- Fixed after the first build: `OpenAICompatibleProvider.test_connection()` reported success without
+  contacting anything (`89cf48a`), and hosted-provider API keys sat in plaintext in `config.json`.
+  They now go to the OS secret store (Credential Manager / Secret Service), and old values are
+  migrated out on load. If no secret store works, the key stays in the file with a logged warning.
 - No budgets or cost accounting for hosted models yet.
 - Keyboard/mouse automation on Wayland (ydotool or the portal) isn't set up in the image.
 - Reading other apps' notifications has no Linux equivalent (blocked).

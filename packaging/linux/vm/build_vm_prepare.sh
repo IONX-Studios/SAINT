@@ -12,6 +12,10 @@ set -euo pipefail
 [ "$(systemd-detect-virt)" = oracle ] || { echo "not a VirtualBox VM; refusing" >&2; exit 1; }
 MNT=/var/tmp/saintos-build
 
+if ! mountpoint -q "$MNT" && [ -e /dev/disk/by-label/saintosbuild ]; then
+  # A build disk from an earlier session (same VM): mount it again, never reformat it.
+  sudo mkdir -p "$MNT"; sudo mount /dev/disk/by-label/saintosbuild "$MNT"
+fi
 if ! mountpoint -q "$MNT"; then
   disk=""
   for d in /sys/block/sd?; do

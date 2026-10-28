@@ -22,6 +22,7 @@ REPO="$(cd "$HERE/../../.." && pwd)"
 WORK="${SAINTOS_WORKDIR:-/var/tmp/saintos-build}"
 DIST="$REPO/dist"
 ALLOW_DIRTY=0
+VALIDATE=1
 KEEP_WORK=0
 MIN_FREE_GB=30
 
@@ -31,6 +32,7 @@ while [ $# -gt 0 ]; do
     --dist) DIST="$2"; shift 2 ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --keep-work) KEEP_WORK=1; shift ;;
+    --no-validate) VALIDATE=0; shift ;;
     -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "build_iso: unknown option $1" >&2; exit 2 ;;
   esac
@@ -213,7 +215,11 @@ sed -e "s/@VERSION@/$SAINTOS_VERSION/g" -e "s/@FEDORA@/$fedora_release/g" -e "s/
 
 #--------------------------------------------------------------------------
 log "7/7 Validate"
-"$HERE/validate_iso.sh" "$ISO" | tee "$DIST/VALIDATION.txt"
+if [ "$VALIDATE" -eq 1 ]; then
+  "$HERE/validate_iso.sh" "$ISO" | tee "$DIST/VALIDATION.txt"
+else
+  echo "skipped (--no-validate)" | tee "$DIST/VALIDATION.txt"
+fi
 
 [ "$KEEP_WORK" -eq 1 ] || $SUDO rm -rf "$WORK/out/build"
 log "Done"

@@ -48,6 +48,13 @@ keyboard and mouse, browser, files, reminders) and answers out loud. The languag
   anywhere with *Reach this PC from anywhere* (router port / IPv6, nothing to install on the phone). Their logs are
   collected on this PC too.
 
+## SAINTOS (Linux)
+
+SAINT also runs on Fedora KDE Plasma, and **SAINTOS** is a Fedora Remix with SAINT built in, built from
+this repository as a bootable live/installer ISO. See [SAINTOS release status](docs/SAINTOS_RELEASE_STATUS.md),
+the [architecture](docs/SAINTOS_ARCHITECTURE.md) and the [dual-boot guide](docs/DUAL_BOOT_INSTALLATION.md).
+On an existing Fedora install: `packaging/linux/setup_fedora.sh`, then `./run.sh`.
+
 ## Install
 
 **Installer:** download `SAINT-Setup.exe` from the

@@ -3,6 +3,21 @@
 Moved out of the README on 2026-10-05; newest first.
 
 
+**SAINTOS 0.1.0 (unreleased, branch `saintos/milestone-a-audit`) — SAINT on Linux, and its own OS:**
+
+- **SAINTOS**, a Fedora Remix with KDE Plasma and SAINT built in, built as a live installer ISO from
+  Fedora's own KIWI descriptions (`packaging/linux/image/build_iso.sh`). It has its own look (Halo
+  wallpaper, SAINT orange, boot splash), the **SAINTOS Control Center** (`saintos-control`) and
+  first-run setup. Status and evidence: [SAINTOS_RELEASE_STATUS.md](SAINTOS_RELEASE_STATUS.md).
+- **SAINT on Linux:** XDG data folder, apps from `.desktop` entries, Steam's Linux locations, window
+  control on Plasma through KWin scripting, Tesseract OCR, a capability report
+  (`python -m core.platform_caps`), and a per-platform self-test.
+- **Security:** hosted-provider API keys now live in the OS secret store, not `config.json`
+  (migrated automatically). The OpenAI-compatible "test connection" check really contacts the server.
+- **Tools:** a read-only hardware/disk preflight (`tools/preflight.py`), a Fedora dev setup
+  (`packaging/linux/setup_fedora.sh`), VirtualBox/QEMU boot tests and a CI image workflow.
+- Windows behaviour unchanged: the Windows-only requirements are skipped on Linux by markers.
+
 **0.4.0 — 2026-10-07 — SAINT does whole tasks and checks its work:**
 
 SAINT's version now starts again at 0.4.0. Your data is migrated automatically on first start (see the end of

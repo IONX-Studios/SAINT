@@ -59,6 +59,8 @@ if [ ${#missing[@]} -gt 0 ]; then
   Install: sudo dnf install -y kiwi kiwi-systemdeps distribution-gpg-keys git python3.12 xorriso"
 fi
 mkdir -p "$WORK"
+# pip and temporary files go to the workspace too (a live session's root has only a small overlay).
+export TMPDIR="$WORK/tmp" PIP_CACHE_DIR="$WORK/pip-cache"; mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
 free_gb=$(df -P --block-size=1G "$WORK" | awk 'NR==2 {print $4}')
 [ "$free_gb" -ge "$MIN_FREE_GB" ] || die "$WORK has ${free_gb} GB free; the build needs at least ${MIN_FREE_GB} GB."
 echo "host: $PRETTY_NAME · $(nproc) CPUs · $(free -g | awk '/Mem:/ {print $2}') GB RAM · ${free_gb} GB free in $WORK"
@@ -159,7 +161,7 @@ echo "description staged in $D"
 log "5/7 KIWI build (SAINTOS-Live) — this takes a while"
 VOLID="SAINTOS-${fedora_release}-x86_64"
 set +e
-$SUDO kiwi-ng --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
+$SUDO kiwi-ng --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
   --description "$D" --target-dir "$WORK/out" \
   --set-type-attr "volid=$VOLID" --set-type-attr "application_id=SAINTOS" \
   --set-type-attr "publisher=SAINTOS (unofficial Fedora Remix)" 2>&1 | tee "$WORK/kiwi.log"

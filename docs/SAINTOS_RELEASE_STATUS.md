@@ -77,7 +77,7 @@ pipewire-jack.
 |---|---|---|
 | Windows paths and tools assumed (`C:\`, `D:\`, `cmd`, `SAINT.exe`, `%LOCALAPPDATA%`, `os.startfile`, Start-menu shortcut, junctions) | test_paths_frozen ×5, test_files ×5, test_session_0930::open_exact_path, test_session_1005::profiles, test_spotify_0929::autostart_shortcut, test_steam ×2, test_automation::shell_command, test_tools_and_safety::app_resolution | Tests need platform guards. Product behaviour on Linux is different by design (XDG paths, no `.exe`) |
 | Keyboard/mouse on Linux | test_tools_and_safety::desktop_key_validation, test_short_term::scroll, test_session_0928::media_keys | **Real gap**: no Linux input backend yet (ydotool / RemoteDesktop portal) |
-| Fallback voice | test_tts_fallback ×4 | **Real gap**: SAPI is Windows-only; espeak-ng fallback still to write |
+| Fallback voice | test_tts_fallback ×4 | These 4 fail on Windows too (pre-existing baseline). The Linux fallback voice gap they pointed to is now filled: espeak-ng engine `modules/voice/espeak.py` (`29f4889`) |
 | Learn-by-watching offers | test_learning ×2, test_short_term::learning_by_watching | Expected: the demonstration recorder is Windows-only, so SAINT doesn't offer it |
 | Game detection | test_game_mode::classifies_steam_games | Investigate (Windows paths likely) |
-| Wake word on silence | test_wake_and_voice::real_model_quiet_on_silence (score 50 vs < 40) | **Investigate**: same model, different score on Linux onnxruntime |
+| Wake-word speed | test_wake_and_voice::real_model_quiet_on_silence: `avg_infer_ms` 50 vs the test's < 40 limit | Not a model difference (same onnxruntime 1.31.1, and the silence score check passed): the build VM was running KIWI at the same time. Re-run on an idle machine |

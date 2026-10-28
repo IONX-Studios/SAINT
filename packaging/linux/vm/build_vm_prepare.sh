@@ -31,11 +31,12 @@ if ! mountpoint -q "$MNT"; then
   sudo mount "$disk" "$MNT"
   sudo chown "$(id -u):$(id -g)" "$MNT"
 fi
-# SELinux: a filesystem made and mounted in a live session starts unlabeled, and policy has no default
-# for paths under /var/tmp (matchpathcon: <<none>>). rpm 6's confined database helper (rpmdb_t) may
-# manage tmp_t but not unlabeled_t or user_tmp_t: without this, `rpm --root <image> --initdb` (and so
-# KIWI) fails with "can't create transaction lock ... (Permission denied)". New files inherit tmp_t.
-sudo chcon -R system_u:object_r:tmp_t:s0 "$MNT"
+# SELinux: a filesystem made in a live session starts unlabeled. rpm 6's confined database helper
+# (rpmdb_t) can't create its database under unlabeled_t or user_tmp_t (what unconfined root gets
+# under tmp_t), so `rpm --root <image> --initdb` (and KIWI) fails with "can't create transaction
+# lock ... (Permission denied)". Under var_lib_t new directories inherit var_lib_t and the database
+# becomes rpm_var_lib_t. build_iso.sh labels its workspace the same way.
+sudo chcon -R system_u:object_r:var_lib_t:s0 "$MNT"
 df -h "$MNT"
 
 # Image-build tools. The live overlay is RAM-backed: keep dnf's cache on the build disk.

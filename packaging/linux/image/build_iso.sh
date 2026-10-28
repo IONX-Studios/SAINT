@@ -59,6 +59,14 @@ if [ ${#missing[@]} -gt 0 ]; then
   Install: sudo dnf install -y kiwi kiwi-systemdeps distribution-gpg-keys git python3.12 xorriso"
 fi
 mkdir -p "$WORK"
+# SELinux (enforcing): rpm 6's confined database helper (rpmdb_t) may only create its database under a
+# few types (var_lib_t, tmp_t, rpm_var_lib_t, ...). A workspace under /var/tmp or a fresh disk gives
+# KIWI's image root user_tmp_t or unlabeled_t, and rpm fails with "can't create transaction lock
+# (Permission denied)". Labelling the workspace var_lib_t makes the image root inherit it. This only
+# relabels files inside the build workspace; SELinux stays enforcing.
+if command -v selinuxenabled >/dev/null && selinuxenabled; then
+  $SUDO chcon -R system_u:object_r:var_lib_t:s0 "$WORK"
+fi
 # pip and temporary files go to the workspace too (a live session's root has only a small overlay).
 export TMPDIR="$WORK/tmp" PIP_CACHE_DIR="$WORK/pip-cache"; mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
 free_gb=$(df -P --block-size=1G "$WORK" | awk 'NR==2 {print $4}')

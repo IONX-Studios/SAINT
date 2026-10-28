@@ -48,3 +48,19 @@ verified hasn't been shown to work. Updated 2026-10-28.
 - `/etc/os-release` branding can revert after a `fedora-release` package update.
 - No in-place updater for `/opt/saint`. Updating means a newer ISO.
 - Not tested on physical hardware.
+
+## Build-environment findings (2026-10-28)
+
+Problems hit while building on a Fedora 44 KDE live session in VirtualBox, and how each was fixed.
+Each fix is in the scripts, so a fresh build host doesn't need them redone by hand.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| pip resolver downloads PyTorch + ~3 GB of `nvidia-*` wheels | `misaki[en]` → `spacy-curated-transformers` → torch | List misaki's English dependencies individually; pin spaCy 3.8.x; `build_iso.sh` refuses a lock with torch/nvidia (`919a323`) |
+| `%sysusers(...) scriptlet failed, exit status 127`, bootstrap aborts | SELinux: `kiwi-selinux` confines `kiwi-ng` as `kiwi_t`, which may not transition to `rpm_script_t` (AVC `denied { transition }`) | Start KIWI through `/usr/bin/python3`, so it runs as ordinary unconfined root (`8accdb3`) |
+| `rpm: can't create transaction lock ... (Permission denied)` | SELinux: rpm 6's `rpmdb_t` can't create its database under `user_tmp_t`/`unlabeled_t`, the labels a `/var/tmp` workspace or fresh disk gives KIWI's image root | Label the workspace `var_lib_t` (`5511e45`). Verified with `sesearch` and `rpm --root … --initdb` |
+| VM can't reach the host's `127.0.0.1` bootstrap server | VirtualBox 7 NAT has `localhost-reachable` off by default | Read-only transient shared folder instead |
+| Typed commands arrive mangled | `keyboardputstring` sticks Shift under Hyper-V | `vm_type.sh` types one character at a time; commands kept lowercase |
+
+SELinux stayed **enforcing** throughout. The build VM's tools were updated from the April live media
+to current Fedora 44 updates (rpm 6.0.2, dnf5 5.4.6, selinux-policy 44.11).

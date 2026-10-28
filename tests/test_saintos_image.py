@@ -128,3 +128,11 @@ def test_configure_doesnt_reuse_os_release_variable_names():
     text = (IMG / "configure-saintos.sh").read_text()
     before = text.split(". /usr/lib/os-release", 1)[0]
     assert not re.search(r"^\s*(VERSION|NAME|ID|VERSION_ID)=", before, re.M)
+
+
+def test_os_release_fields_from_fedora_are_optional():
+    # Fedora 44 dropped PLATFORM_ID; under `set -u` a missing field must not stop the build.
+    text = (IMG / "configure-saintos.sh").read_text()
+    for field in ("PLATFORM_ID", "CPE_NAME", "SUPPORT_END"):
+        uses = re.findall(r"\$\{" + field + r"([^}]*)\}", text)
+        assert uses and all(u.startswith(":-") for u in uses), field

@@ -188,7 +188,25 @@ class OpenAICompatibleProvider(AIProvider):
         return "".join(accumulated)
 
     def test_connection(self, base_url: str, timeout: float = 5.0) -> Dict[str, Any]:
-        return {"connected": True, "provider": "mock", "latency_ms": 0}
+        """Is an OpenAI-compatible server answering at ``base_url``? (GET /models, no key sent.)
+
+        200 means reachable and open; 401/403 means reachable but it needs the API key, which is
+        checked on the first real request. Anything else, or no answer, is "not connected".
+        """
+        if not base_url:
+            return {"connected": False, "provider": "openai", "error": "no address configured"}
+        url = base_url.rstrip("/") + "/models"
+        t0 = time.perf_counter()
+        try:
+            resp = requests.get(url, timeout=timeout)
+        except requests.RequestException as e:
+            return {"connected": False, "provider": "openai", "error": f"no answer from {base_url}: {e}"}
+        latency = round((time.perf_counter() - t0) * 1000)
+        if resp.status_code == 200:
+            return {"connected": True, "provider": "openai", "latency_ms": latency, "auth": "not required"}
+        if resp.status_code in (401, 403):
+            return {"connected": True, "provider": "openai", "latency_ms": latency, "auth": "required"}
+        return {"connected": False, "provider": "openai", "error": f"HTTP {resp.status_code} from {url}"}
 
     def list_models(self, base_url: str, timeout: float = 10.0) -> List[Dict[str, Any]]:
         try:

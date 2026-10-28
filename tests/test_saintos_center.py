@@ -81,3 +81,11 @@ def test_every_page_builds_offscreen():
         win._nav.setCurrentRow(i)
         app.processEvents()
     win.close()
+
+
+def test_openai_compatible_connection_is_really_tested():
+    """It used to report connected=True without contacting anything."""
+    from modules.ai.providers import OpenAICompatibleProvider
+    res = OpenAICompatibleProvider().test_connection("http://127.0.0.1:9/v1", timeout=2)
+    assert res["connected"] is False and "no answer" in res["error"]
+    assert OpenAICompatibleProvider().test_connection("", timeout=1)["connected"] is False

@@ -47,6 +47,9 @@ df -h "$MNT"
 sudo mkdir -p "$MNT/dnf-cache"
 sudo dnf install -y --setopt=cachedir="$MNT/dnf-cache" \
   kiwi kiwi-systemdeps distribution-gpg-keys git python3.12 xorriso erofs-utils desktop-file-utils dracut
+# The live media's rpm/dnf5/SELinux policy are from its release day; bring them to current updates
+# (what Fedora's own builders use) so the image's packages and the host tools match.
+sudo dnf upgrade -y --setopt=cachedir="$MNT/dnf-cache" "rpm*" "dnf5*" "libdnf5*" "kiwi*" python3-kiwi   "selinux-policy*" systemd systemd-libs
 python3.12 -m ensurepip --user >/dev/null 2>&1 || true
 python3.12 -m pip --version
 kiwi-ng --version || true

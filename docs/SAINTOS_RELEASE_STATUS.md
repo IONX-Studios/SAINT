@@ -30,7 +30,7 @@ verified hasn't been shown to work. Updated 2026-10-28.
 | Live desktop verified | _pending_ | |
 | Installed to a disposable virtual disk | _pending_ | `install_test.sh` |
 | Installed OS booted and launched SAINT | _pending_ | |
-| SAINT regression tests recorded | **Verified (Windows)** | see above. Linux run: CI workflow written, not run (no GitHub access from this machine). |
+| SAINT regression tests recorded | **Verified (Windows + Linux)** | Windows: 1501 passed / 4 baseline failures. **Linux (Fedora 44, Python 3.12, SAINTOS's exact runtime lock, offscreen Qt): 1475 passed, 30 failed, 6 skipped** at `4dc9909` (see below). CI workflow written, not run. |
 | Dual-boot procedure documented | **Done** | [DUAL_BOOT_INSTALLATION.md](DUAL_BOOT_INSTALLATION.md) |
 | No physical disk repartitioned or formatted | **Verified** | Only VirtualBox virtual disks (`.vdi` files) were formatted, inside VMs, by scripts that refuse any other disk. |
 | ISO at a verified path | _pending_ | |
@@ -64,3 +64,20 @@ Each fix is in the scripts, so a fresh build host doesn't need them redone by ha
 
 SELinux stayed **enforcing** throughout. The build VM's tools were updated from the April live media
 to current Fedora 44 updates (rpm 6.0.2, dnf5 5.4.6, selinux-policy 44.11).
+
+## Linux test run (Fedora 44, 2026-10-28)
+
+`QT_QPA_PLATFORM=offscreen pytest -q` in the build VM, in a venv with SAINTOS's locked runtime
+(`saint-runtime.lock`) plus pytest: **1475 passed, 30 failed, 6 skipped** (7 min 41 s). After the
+run, the interpreter aborted at exit: PortAudio's JACK host API asserted in `Pa_Terminate`
+(`pa_jack.c:867`). That's a real Linux issue: SAINT could crash on exit on systems with
+pipewire-jack.
+
+| Group | Tests | Verdict |
+|---|---|---|
+| Windows paths and tools assumed (`C:\`, `D:\`, `cmd`, `SAINT.exe`, `%LOCALAPPDATA%`, `os.startfile`, Start-menu shortcut, junctions) | test_paths_frozen ×5, test_files ×5, test_session_0930::open_exact_path, test_session_1005::profiles, test_spotify_0929::autostart_shortcut, test_steam ×2, test_automation::shell_command, test_tools_and_safety::app_resolution | Tests need platform guards. Product behaviour on Linux is different by design (XDG paths, no `.exe`) |
+| Keyboard/mouse on Linux | test_tools_and_safety::desktop_key_validation, test_short_term::scroll, test_session_0928::media_keys | **Real gap**: no Linux input backend yet (ydotool / RemoteDesktop portal) |
+| Fallback voice | test_tts_fallback ×4 | **Real gap**: SAPI is Windows-only; espeak-ng fallback still to write |
+| Learn-by-watching offers | test_learning ×2, test_short_term::learning_by_watching | Expected: the demonstration recorder is Windows-only, so SAINT doesn't offer it |
+| Game detection | test_game_mode::classifies_steam_games | Investigate (Windows paths likely) |
+| Wake word on silence | test_wake_and_voice::real_model_quiet_on_silence (score 50 vs < 40) | **Investigate**: same model, different score on Linux onnxruntime |

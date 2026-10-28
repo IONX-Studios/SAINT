@@ -1,6 +1,6 @@
 # Feature compatibility — Windows SAINT → SAINTOS (Fedora KDE)
 
-Updated 2026-10-28 (Milestone A). "Linux" means Fedora KDE Plasma 6 on **Wayland**, Fedora's
+Updated 2026-10-28 (Milestone A, then B and G work). "Linux" means Fedora KDE Plasma 6 on **Wayland**, Fedora's
 default session; X11 notes are given where they differ. **Nothing in the Linux column has been run on
 Fedora yet.** It comes from reading the code, the platform APIs, and mocked tests. A status changes
 to *verified* only when `packaging/linux/run_tests.sh` or a manual check on Fedora shows it working.
@@ -27,12 +27,12 @@ Status: **portable** (no OS code; expected to work) · **ported** (Linux backend
 | Text-to-speech | `modules/voice/tts.py`, `kokoro_onnx.py`, `tts_service.py` | Kokoro; SAPI fallback | Kokoro portable; **SAPI is Windows-only** | `espeak-ng` | espeak-ng fallback engine in `tts_service._fallback` | `test_tts_fallback` | partial |
 | Interruption / barge-in | `voice_state.py`, `audio_echo.py` | Stop on speech, echo gate | portable | — | — | `test_wake_and_voice` | portable |
 | App discovery / launch | `modules/desktop/apps.py` | Start menu, Store apps, App Paths | `.desktop` entries + Flatpak exports; `gio launch` | `glib2`, `xdg-utils` | **done** | `test_linux_platform::test_*desktop*`, `*launch*` | ported |
-| Window list / focus / move / snap / close | `modules/desktop/controller.py`, `window_match.py` | Win32 HWNDs | Wayland: KWin script over D-Bus. X11: wmctrl/xdotool | `qt6-qttools` (qdbus6); KWin only | `modules/desktop/linux/kwin.py` backend | — | planned |
-| Monitors | `controller.monitors()` | EnumDisplayMonitors + DPI | KWin `workspace.screens` / Qt `QGuiApplication.screens()` | — | Qt screens first (portable), KWin for work areas | — | planned |
+| Window list / focus / move / snap / close | `modules/desktop/controller.py`, `window_match.py` | Win32 HWNDs | Wayland: KWin script over D-Bus. X11: wmctrl/xdotool | `qt6-qttools` (qdbus6); KWin only | **done**: `modules/desktop/backend.py` + `modules/desktop/linux/kwin.py` | `test_desktop_backend` (fake KWin; real-session test only in Plasma) | ported |
+| Monitors | `controller.monitors()` | EnumDisplayMonitors + DPI | KWin `workspace.screens` / Qt `QGuiApplication.screens()` | — | **done** via KWin `workspace.screens` | `test_desktop_backend::test_monitors_from_kwin` | ported |
 | Keyboard / mouse | `controller.py` (SendInput), pyautogui | Validated keys, blocked combos | ydotool (uinput) or RemoteDesktop portal | `/dev/uinput` access; portal asks once | `modules/desktop/linux/input.py` | `test_linux_platform` (caps only) | planned |
 | Clipboard | `modules/desktop/clipboard.py` | win32clipboard | `wl-copy`/`wl-paste`, or Qt clipboard while SAINT has focus | `wl-clipboard` | Linux branch in `clipboard.py` | — | planned |
 | Screenshot | `modules/vision/screen.py`, `system_controls.screenshot` | Pillow ImageGrab | `spectacle -b -n -o` (KDE) or screenshot portal | `spectacle` | Linux capture function | — | planned |
-| OCR | `modules/vision/ocr.py` | Windows.Media.Ocr | Tesseract | `tesseract`, langpack | `ocr.py` Tesseract backend | — | planned |
+| OCR | `modules/vision/ocr.py` | Windows.Media.Ocr | Tesseract | `tesseract`, langpack | **done**: Tesseract TSV backend in `ocr.py` | `test_linux_platform::test_tesseract_*` | ported |
 | UI element tree | `modules/desktop/uia.py` | UI Automation | AT-SPI (`pyatspi`), partial coverage | apps must expose accessibility | AT-SPI backend for read-only lookups | — | planned |
 | System volume / mic mute / output device | `system_controls.py` (pycaw) | Core Audio | `wpctl` (PipeWire) | `wireplumber` | Linux branch | — | planned |
 | Per-app volume | `system_controls.app_volume` | Core Audio sessions | `pw-dump` + `wpctl set-volume <id>` | — | match streams by `application.name` | — | planned |
@@ -53,7 +53,7 @@ Status: **portable** (no OS code; expected to work) · **ported** (Linux backend
 | SAINT Link | `modules/link/` | Encrypted peer sync, mDNS | portable; firewall via firewalld D-Bus | `zeroconf` | firewalld branch (polkit) | `test_link_*` | portable (firewall planned) |
 | MCP servers | `modules/mcp/` | stdio clients | portable | — | — | `test_mcp` | portable |
 | Local LLM (Ollama) | `modules/ai/providers.py` | `/api/chat`, tools | portable | Ollama installed separately | hardware-aware model selection (Milestone F) | `test_capabilities` | portable |
-| Hosted providers | `providers.OpenAICompatibleProvider` | Bearer key from **plaintext config** | portable | — | keyring storage, budgets, accounting (Milestone F) | — | partial |
-| Self-test | `core/selftest.py` | Imports + assets + UI + agent | imports list is Windows-specific (`winrt`, `uiautomation`) | — | per-platform required imports | `test_v04_selftest` | partial |
-| Packaging | `packaging/windows/` | PyInstaller + Inno Setup | Linux: source install + user service now; RPM later | — | `packaging/linux/` **started** | `test_linux_platform::test_linux_scripts_*` | partial |
+| Hosted providers | `providers.OpenAICompatibleProvider` | Bearer key from **plaintext config** | portable | — | keys in the OS secret store **done**; `test_connection` fixed; budgets still to do | `test_saintos_center::test_api_keys_*`, `test_openai_compatible_*` | partial |
+| Self-test | `core/selftest.py` | Imports + assets + UI + agent | imports list is Windows-specific (`winrt`, `uiautomation`) | — | **done**: per-platform required imports | `test_v04_selftest` | ported |
+| Packaging | `packaging/windows/` | PyInstaller + Inno Setup | Linux: source install + user service now; RPM later | — | SAINTOS ISO (KIWI) + user service + menu entries | `test_saintos_image`, `validate_iso.sh`, boot tests | see SAINTOS_RELEASE_STATUS |
 | Hardware/storage preflight | — (new) | — | Linux + Windows, read-only | — | **done** `tools/preflight.py` | `test_linux_platform::test_preflight_*` | ported |

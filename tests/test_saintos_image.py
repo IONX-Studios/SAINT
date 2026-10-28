@@ -121,3 +121,10 @@ def test_boot_report_selftest_is_offline():
     text = (FS / "usr/libexec/saintos/boot-report").read_text()
     assert "SAINT_SELFTEST_NO_VOICE=1" in text, "the boot test must not download voice models"
     assert "SAINT_DATA_DIR=" in text and "timeout " in text
+
+
+def test_configure_doesnt_reuse_os_release_variable_names():
+    # `. /usr/lib/os-release` defines VERSION, NAME, ID...; the SAINTOS version must survive it.
+    text = (IMG / "configure-saintos.sh").read_text()
+    before = text.split(". /usr/lib/os-release", 1)[0]
+    assert not re.search(r"^\s*(VERSION|NAME|ID|VERSION_ID)=", before, re.M)

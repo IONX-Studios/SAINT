@@ -8,7 +8,7 @@
 set -euxo pipefail
 
 SAINT=/opt/saint
-VERSION=$(cat /usr/share/saintos/VERSION)
+SAINTOS_VER=$(cat /usr/share/saintos/VERSION)
 
 #--------------------------------------------------------------------------
 # SAINT: its own Python environment, offline from the staged wheelhouse
@@ -55,12 +55,12 @@ FEDORA_VERSION_ID="$VERSION_ID"
 rm -f /etc/os-release
 cat > /etc/os-release <<EOF
 NAME="SAINTOS"
-VERSION="${VERSION} (Fedora Remix ${FEDORA_VERSION_ID}, KDE Plasma)"
+VERSION="${SAINTOS_VER} (Fedora Remix ${FEDORA_VERSION_ID}, KDE Plasma)"
 ID=fedora
 ID_LIKE="fedora"
 VERSION_ID=${FEDORA_VERSION_ID}
 PLATFORM_ID="${PLATFORM_ID}"
-PRETTY_NAME="SAINTOS ${VERSION} (Fedora Remix ${FEDORA_VERSION_ID})"
+PRETTY_NAME="SAINTOS ${SAINTOS_VER} (Fedora Remix ${FEDORA_VERSION_ID})"
 ANSI_COLOR="0;38;2;254;170;52"
 LOGO=saintos
 CPE_NAME="${CPE_NAME}"
@@ -69,10 +69,10 @@ DOCUMENTATION_URL="https://github.com/IONX-Studios/SAINT/tree/saintos/milestone-
 BUG_REPORT_URL="https://github.com/IONX-Studios/SAINT/issues"
 VARIANT="SAINTOS"
 VARIANT_ID=saintos
-SAINTOS_VERSION="${VERSION}"
+SAINTOS_VERSION="${SAINTOS_VER}"
 SUPPORT_END=${SUPPORT_END:-}
 EOF
-echo "SAINTOS ${VERSION} (Fedora Remix ${FEDORA_VERSION_ID}) \\n \\l" > /etc/issue
+echo "SAINTOS ${SAINTOS_VER} (Fedora Remix ${FEDORA_VERSION_ID}) \\n \\l" > /etc/issue
 echo saintos > /etc/hostname
 
 #--------------------------------------------------------------------------
@@ -110,4 +110,4 @@ plymouth-set-default-theme saintos
 systemctl preset saintos-boot-report.service
 systemctl enable saintos-boot-report.service
 
-echo "SAINTOS ${VERSION} configured."
+echo "SAINTOS ${SAINTOS_VER} configured."

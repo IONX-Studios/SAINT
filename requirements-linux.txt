@@ -12,4 +12,4 @@
 # Secrets (Spotify login, Link key, API keys) go to the freedesktop Secret Service
 # (KWallet on Plasma 6, or GNOME Keyring) through keyring's SecretService backend.
 SecretStorage>=3.3
-jeepney>=0.8
+jeepney>=0.8                 # also KWin window control over D-Bus (modules/desktop/linux/kwin.py)

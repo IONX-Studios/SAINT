@@ -67,6 +67,9 @@ try:
 except Exception:  # pragma: no cover
     psutil = None
 
+# Linux: SAINT's own windows (KWin ids), so "minimize the others" never hides SAINT.
+_OWN_HANDLES: set = set()
+
 
 @dataclass
 class WindowInfo:
@@ -138,14 +141,20 @@ def _game_guard():
 
 
 class DesktopController:
+    @property
+    def _wm(self):
+        """Window-manager primitives for this platform (modules/desktop/backend.py)."""
+        from modules.desktop.backend import window_manager
+        return window_manager()
+
     # ------------------------------------------------------------------ #
     # Monitors
     # ------------------------------------------------------------------ #
     def monitors(self) -> List[MonitorInfo]:
-        if not HAS_WIN32:
-            raise ToolError("Window control needs pywin32 (Windows only).", "UNSUPPORTED")
         mons = []
-        for hmon, _hdc, rect in win32api.EnumDisplayMonitors():
+        if not HAS_WIN32:
+            mons = [(m.rect, m.work, m.primary, m.scale) for m in self._wm.monitors()]
+        for hmon, _hdc, rect in (win32api.EnumDisplayMonitors() if HAS_WIN32 else []):
             info = win32api.GetMonitorInfo(hmon)
             scale = 1.0
             try:
@@ -242,7 +251,15 @@ class DesktopController:
             pass
         return ""
 
+    def _from_raw(self, raw) -> WindowInfo:
+        return WindowInfo(hwnd=raw.handle, title=raw.title, process=raw.process, left=raw.left, top=raw.top,
+                          width=raw.width, height=raw.height,
+                          monitor=self._monitor_index_for(raw.left, raw.top, raw.width, raw.height),
+                          minimized=raw.minimized, maximized=raw.maximized, foreground=raw.foreground)
+
     def _info(self, hwnd) -> WindowInfo:
+        if not HAS_WIN32:
+            return self._from_raw(self._wm.window(hwnd))
         l, t, r, b = win32gui.GetWindowRect(hwnd)
         placement = win32gui.GetWindowPlacement(hwnd)
         return WindowInfo(
@@ -255,9 +272,11 @@ class DesktopController:
         )
 
     def list_windows(self) -> List[WindowInfo]:
-        if not HAS_WIN32:
-            raise ToolError("Window control needs pywin32 (Windows only).", "UNSUPPORTED")
         own_pid = os.getpid()
+        if not HAS_WIN32:
+            raws = [r for r in self._wm.windows() if r.pid != own_pid or r.title == "SAINT"]
+            _OWN_HANDLES.update(r.handle for r in raws if r.pid == own_pid)
+            return [self._from_raw(r) for r in raws]
         out: List[WindowInfo] = []
 
         def cb(hwnd, _):
@@ -347,6 +366,8 @@ class DesktopController:
 
     @staticmethod
     def _is_own(w: WindowInfo) -> bool:
+        if not HAS_WIN32:
+            return w.hwnd in _OWN_HANDLES
         try:
             return win32process.GetWindowThreadProcessId(w.hwnd)[1] == os.getpid()
         except Exception:
@@ -427,8 +448,17 @@ class DesktopController:
     def _activate(self, w: WindowInfo) -> WindowInfo:
         query = w.title
         hwnd = w.hwnd
+        if not HAS_WIN32:
+            self._wm.activate(hwnd)
+            from modules.desktop.backend import wait_until
+            wait_until(lambda: self._info(hwnd).foreground, timeout=0.6)
+            info = self._info(hwnd)
+            if not info.foreground:
+                raise ToolError(f"KWin didn't bring {w.title or query} to the front.", "FOCUS_BLOCKED")
+            self._note(info)
+            return info
         if win32gui.IsIconic(hwnd):
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            self._wm.show(hwnd, "restore")
         try:
             win32gui.SetForegroundWindow(hwnd)
         except Exception:
@@ -461,7 +491,7 @@ class DesktopController:
         was_max = w.maximized
         hwnd = w.hwnd
         if w.minimized or was_max:
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            self._wm.show(hwnd, "restore")
             time.sleep(0.05)
             w = self._info(hwnd)
         src = next((m for m in self.monitors() if m.index == w.monitor), target)
@@ -473,10 +503,9 @@ class DesktopController:
         height = min(w.height, wb - wt)
         x = int(wl + max(0.0, min(rel_x, 1.0)) * (wr - wl - width))
         y = int(wt + max(0.0, min(rel_y, 1.0)) * (wb - wt - height))
-        win32gui.SetWindowPos(hwnd, 0, x, y, width, height,
-                              win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE)
+        self._wm.set_pos(hwnd, x, y, width, height, activate=False)
         if was_max:
-            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+            self._wm.show(hwnd, "maximize")
         time.sleep(0.1)
         info = self._info(hwnd)
         if info.monitor != target.index:
@@ -493,7 +522,7 @@ class DesktopController:
             if w.minimized:
                 continue
             try:
-                win32gui.ShowWindow(w.hwnd, win32con.SW_MINIMIZE)
+                self._wm.show(w.hwnd, "minimize")
                 hidden += 1
             except Exception as e:
                 log.debug("desktop.minimize_all_failed %s %s", w.title[:40], e)
@@ -522,13 +551,13 @@ class DesktopController:
             if w.hwnd in keep_ids or w.minimized:
                 continue
             try:
-                win32gui.ShowWindow(w.hwnd, win32con.SW_MINIMIZE)
+                self._wm.show(w.hwnd, "minimize")
                 hidden += 1
             except Exception as e:
                 log.debug("desktop.minimize_others_failed %s %s", w.title[:40], e)
         for w in kept:
             if w.minimized:
-                win32gui.ShowWindow(w.hwnd, win32con.SW_RESTORE)
+                self._wm.show(w.hwnd, "restore")
         kept_names = []
         for w in kept:
             n = w.process.replace(".exe", "").title()
@@ -542,14 +571,14 @@ class DesktopController:
         w = self.find_window(query)
         hwnd = w.hwnd
         if action == "maximize":
-            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+            self._wm.show(hwnd, "maximize")
         elif action == "minimize":
-            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+            self._wm.show(hwnd, "minimize")
         elif action == "restore":
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            self._wm.show(hwnd, "restore")
         elif action in ("snap_left", "snap_right", "center"):
             if w.maximized or w.minimized:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                self._wm.show(hwnd, "restore")
             mon = next(m for m in self.monitors() if m.index == w.monitor)
             l, t, r, b = mon.work
             if action == "center":
@@ -558,7 +587,7 @@ class DesktopController:
             else:
                 width, height = (r - l) // 2, b - t
                 x, y = (l if action == "snap_left" else l + width), t
-            win32gui.SetWindowPos(hwnd, 0, x, y, width, height, win32con.SWP_NOZORDER)
+            self._wm.set_pos(hwnd, x, y, width, height)
         else:
             raise ToolError(f"Unknown window action '{action}'.", "INVALID")
         time.sleep(0.1)
@@ -574,7 +603,7 @@ class DesktopController:
         _require("allow_window_control", "Window control")
         w = self.find_window(query)
         if w.maximized or w.minimized:
-            win32gui.ShowWindow(w.hwnd, win32con.SW_RESTORE)
+            self._wm.show(w.hwnd, "restore")
             time.sleep(0.05)
             w = self._info(w.hwnd)
         mon = next(m for m in self.monitors() if m.index == w.monitor)
@@ -582,13 +611,13 @@ class DesktopController:
         nw = int(max(320, min(r - l, w.width * factor)))
         nh = int(max(240, min(b - t, w.height * factor)))
         if nw >= (r - l) * 0.97 and nh >= (b - t) * 0.97 and factor > 1:
-            win32gui.ShowWindow(w.hwnd, win32con.SW_MAXIMIZE)
+            self._wm.show(w.hwnd, "maximize")
             time.sleep(0.1)
             return self._info(w.hwnd)
         cx, cy = w.left + w.width // 2, w.top + w.height // 2
         x = min(max(l, cx - nw // 2), r - nw)
         y = min(max(t, cy - nh // 2), b - nh)
-        win32gui.SetWindowPos(w.hwnd, 0, x, y, nw, nh, win32con.SWP_NOZORDER)
+        self._wm.set_pos(w.hwnd, x, y, nw, nh)
         time.sleep(0.1)
         info = self._info(w.hwnd)
         if (factor > 1) != (info.width * info.height > w.width * w.height) and info.width * info.height != w.width * w.height:
@@ -607,10 +636,10 @@ class DesktopController:
         half = (r - l) // 2
         for w in (a, b):
             if w.maximized or w.minimized:
-                win32gui.ShowWindow(w.hwnd, win32con.SW_RESTORE)
+                self._wm.show(w.hwnd, "restore")
         a_x, b_x = (l + half, l) if side == "right" else (l, l + half)
-        win32gui.SetWindowPos(b.hwnd, 0, b_x, t, half, bt - t, win32con.SWP_NOZORDER)
-        win32gui.SetWindowPos(a.hwnd, 0, a_x, t, half, bt - t, win32con.SWP_NOZORDER)
+        self._wm.set_pos(b.hwnd, b_x, t, half, bt - t)
+        self._wm.set_pos(a.hwnd, a_x, t, half, bt - t)
         time.sleep(0.1)
         ai, bi = self._info(a.hwnd), self._info(b.hwnd)
         if ai.monitor != bi.monitor:
@@ -625,9 +654,8 @@ class DesktopController:
         width = max(200, min(int(width), r - l))
         height = max(150, min(int(height), b - t))
         if w.maximized:
-            win32gui.ShowWindow(w.hwnd, win32con.SW_RESTORE)
-        win32gui.SetWindowPos(w.hwnd, 0, w.left, w.top, width, height,
-                              win32con.SWP_NOZORDER | win32con.SWP_NOMOVE)
+            self._wm.show(w.hwnd, "restore")
+        self._wm.set_pos(w.hwnd, w.left, w.top, width, height, move=False)
         return self._info(w.hwnd)
 
     def close(self, query: str) -> dict:
@@ -696,6 +724,13 @@ class DesktopController:
         # WM_CLOSE is the polite close: apps with unsaved work show their own
         # save prompt instead of losing it. Some apps only honour the title
         # bar's close command (SC_CLOSE), so that is tried next.
+        if not HAS_WIN32:                                    # KWin's closeWindow() is the same polite close
+            from modules.desktop.backend import wait_until
+            self._wm.close(w.hwnd)
+            if wait_until(lambda: not self._wm.is_window(w.hwnd), timeout=1.5, step=0.1):
+                return {"closed": True, "title": w.title, "process": w.process}
+            return {"closed": False, "title": w.title, "process": w.process,
+                    "note": "The window asked to stay open (it may be showing a save prompt)."}
         for msg, wparam in ((win32con.WM_CLOSE, 0), (win32con.WM_SYSCOMMAND, win32con.SC_CLOSE)):
             win32gui.PostMessage(w.hwnd, msg, wparam, 0)
             for _ in range(15):

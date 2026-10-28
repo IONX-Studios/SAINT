@@ -50,7 +50,7 @@ log "1/7 Host checks"
 [ "${ID:-}" = fedora ] || die "build on Fedora (found ${ID:-unknown}); KIWI's Fedora descriptions expect Fedora's dnf5 and keys."
 [ "${VERSION_ID:-0}" -ge "$fedora_release" ] 2>/dev/null || echo "note: host is Fedora ${VERSION_ID}, image is Fedora $fedora_release"
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO="sudo"
-[ -z "$SUDO" ] || sudo -n true 2>/dev/null || die "KIWI needs root: run with passwordless sudo or as root."
+[ -z "$SUDO" ] || sudo true < /dev/null 2>/dev/null || die "KIWI needs root: run as root or with sudo that doesn't prompt (NOPASSWD, or a live session)."
 missing=()
 for t in kiwi-ng git python3.12 xorriso sha256sum rpm; do command -v "$t" >/dev/null || missing+=("$t"); done
 [ -f /usr/share/distribution-gpg-keys/fedora/RPM-GPG-KEY-fedora-${fedora_release}-primary ] || missing+=("distribution-gpg-keys")

@@ -50,7 +50,10 @@ echo "live SSH ok"
 
 echo "== 2. Install to the virtual disk (Anaconda + install-test.ks)"
 ssh_vm liveuser@127.0.0.1 'lsblk -d -o NAME,SIZE,MODEL'
-ssh_vm liveuser@127.0.0.1 'sudo cp /mnt/s/ks.cfg /tmp/ks.cfg && sudo liveinst --text --kickstart /tmp/ks.cfg' \
+# liveinst refuses kickstarts on live media ("not supported ... will continue interactively"), so
+# Anaconda is called directly in text, non-interactive mode with the live system as the source. This
+# is a test harness for the disposable VM, not a supported way to install; people use the GUI.
+ssh_vm liveuser@127.0.0.1 'sudo cp /mnt/s/ks.cfg /tmp/ks.cfg && sudo anaconda --liveinst --text --noninteractive --kickstart /tmp/ks.cfg' \
   > "$OUT/install.log" 2>&1 || true
 end=$((SECONDS + 3600))
 while "$VB" showvminfo "$VM" --machinereadable | grep -q 'VMState="running"'; do

@@ -50,6 +50,11 @@ sudo dnf install -y --setopt=cachedir="$MNT/dnf-cache" \
 # The live media's rpm/dnf5/SELinux policy are from its release day; bring them to current updates
 # (what Fedora's own builders use) so the image's packages and the host tools match.
 sudo dnf upgrade -y --setopt=cachedir="$MNT/dnf-cache" "rpm*" "dnf5*" "libdnf5*" "kiwi*" python3-kiwi   "selinux-policy*" systemd systemd-libs
+# KIWI relabels the image with the image's policy, but the *host kernel* must know every type it uses:
+# add-on policy modules (passt-selinux, container-selinux, flatpak-selinux, ...) must be as new on the
+# host as in the image, or setfiles fails ("Could not set context for /usr/bin/pesto: Invalid argument").
+sudo dnf upgrade -y --setopt=cachedir="$MNT/dnf-cache" $(rpm -qa --qf '%{NAME}
+' | grep -E -- '-selinux$' | sort -u)
 python3.12 -m ensurepip --user >/dev/null 2>&1 || true
 python3.12 -m pip --version
 kiwi-ng --version || true

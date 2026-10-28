@@ -1,0 +1,2 @@
+# SAINTOS service defaults
+enable saintos-boot-report.service

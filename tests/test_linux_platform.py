@@ -306,3 +306,27 @@ def test_steam_found_in_linux_locations(monkeypatch, tmp_path):
     assert library.steam_path() is None                    # no Steam: None, not an ImportError
     (tmp_path / "Steam").mkdir()
     assert library.steam_path() == str(tmp_path / "Steam")
+
+
+# --------------------------------------------------------------------------- #
+# modules/vision/ocr.py — Tesseract (Linux)
+# --------------------------------------------------------------------------- #
+def test_tesseract_tsv_becomes_lines_and_words():
+    from modules.vision import ocr
+    head = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
+    rows = ["5\t1\t1\t1\t1\t1\t10\t20\t60\t18\t96.1\tSubmit",
+            "5\t1\t1\t1\t1\t2\t75\t20\t50\t18\t95.0\torder",
+            "5\t1\t2\t1\t1\t1\t10\t80\t40\t18\t12.0\t~~",          # low confidence: dropped
+            "4\t1\t2\t1\t1\t0\t10\t80\t40\t18\t-1\t",
+            "5\t1\t2\t1\t1\t1\t10\t120\t70\t18\t91.0\tCancel"]
+    lines = ocr.parse_tesseract_tsv("\n".join([head] + rows))
+    assert [l["text"] for l in lines] == ["Submit order", "Cancel"]
+    assert lines[0]["words"][1]["rect"] == (75, 20, 50, 18)
+
+
+def test_find_text_with_tesseract_lines(monkeypatch):
+    from modules.vision import ocr
+    lines = [{"text": "Submit order", "words": [{"text": "Submit", "rect": (10, 20, 60, 18)},
+                                                {"text": "order", "rect": (75, 20, 50, 18)}]}]
+    monkeypatch.setattr(ocr, "recognize", lambda data: {"text": "", "lines": lines, "available": True})
+    assert ocr.find_text("submit order", b"png", origin=(100, 200)) == (110, 220, 115, 18)

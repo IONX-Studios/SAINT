@@ -1,0 +1,25 @@
+# SAINT's Python packages inside SAINTOS (/opt/saint/venv, Python 3.12).
+# requirements.txt minus the Windows-only packages, PyTorch (Kokoro runs on onnxruntime here),
+# PyInstaller and the test tools. build_iso.sh turns this into a wheelhouse and an exact lock
+# file (saint-runtime.lock, recorded in the build output) before the image is built.
+
+PySide6-Essentials>=6.6.0      # QtCore / QtGui / QtWidgets / QtSvg are all SAINT uses
+requests>=2.31.0
+psutil>=5.9.0
+numpy>=2.0.0,<3.0.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
+onnxruntime>=1.16.0
+faster-whisper>=1.0.3
+kokoro-onnx>=0.4.9
+en_core_web_sm==3.8.0          # fetched as a wheel from spaCy's GitHub release by build_iso.sh
+misaki[en]>=0.7.0
+espeakng_loader>=0.2.4
+phonemizer>=3.2.0
+pillow>=10.0.0
+keyring>=25.0.0
+SecretStorage>=3.3
+jeepney>=0.8
+segno>=1.6.0
+zeroconf>=0.130.0
+cryptography>=42.0.0

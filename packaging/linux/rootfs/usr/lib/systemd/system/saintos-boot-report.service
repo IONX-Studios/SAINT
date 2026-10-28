@@ -1,0 +1,15 @@
+# Writes one line to the first serial port when the graphical session is up, so a VM
+# boot test can tell "reached the desktop" from "still booting" without screenshots.
+# Read-only otherwise; does nothing on machines without a serial port.
+[Unit]
+Description=SAINTOS boot report (serial console)
+After=graphical.target
+ConditionPathExists=/dev/ttyS0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/saintos/boot-report
+TimeoutStartSec=300
+
+[Install]
+WantedBy=graphical.target

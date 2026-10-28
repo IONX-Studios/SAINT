@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# SAINTOS Control Center (ui/saintos_center.py): SAINT's service, AI, voice, permissions, data, diagnostics.
+set -euo pipefail
+cd /opt/saint/app
+exec /opt/saint/venv/bin/python -m ui.saintos_center "$@"

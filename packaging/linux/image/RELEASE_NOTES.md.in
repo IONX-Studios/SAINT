@@ -1,0 +1,36 @@
+# SAINTOS @VERSION@ (Fedora Remix @FEDORA@, KDE Plasma)
+
+Built @BUILT_AT@ from SAINT commit `@COMMIT@`.
+
+`SAINTOS-x86_64.iso` · SHA-256 `@SHA256@`
+
+SAINTOS is a Fedora Remix: Fedora Linux @FEDORA@ with KDE Plasma, built from Fedora's own image
+descriptions with SAINT installed natively. It is **not an official Fedora product** and isn't
+endorsed by the Fedora Project. Fedora is a trademark of Red Hat, Inc.
+
+## What's in it
+
+- Fedora's KDE Plasma desktop, live session and Anaconda installer, unchanged underneath (same
+  kernel, packages, updates and Secure Boot chain as Fedora).
+- **SAINT** in `/opt/saint` with its own Python 3.12 environment. Menu: *SAINT*. Command: `saint`.
+  The user service is off until you turn it on (`systemctl --user enable --now saint`, or the
+  Control Center).
+- **SAINTOS Control Center** (`saintos-control`): service, AI provider/model (detects Ollama),
+  voice, permissions, capabilities, data folders, diagnostics, updates. It opens once on first login.
+- SAINTOS look: dark Breeze with SAINT orange, the Halo wallpaper, SAINTOS boot splash.
+- `saintos-diagnose`: read-only diagnostics folder.
+
+## Not included / known limitations
+
+- No AI model and no Ollama: install Ollama and pull a model you choose. SAINT's commands work
+  without one; chat and planning need one.
+- SAINT's speech models (~500 MB) download the first time SAINT starts.
+- Window control uses KWin scripting. Keyboard/mouse automation (ydotool) isn't set up by
+  default. Reading other apps' notifications isn't possible on Linux.
+- Hosted-provider API keys are still stored in SAINT's config file (Secret Service planned).
+- Updates: Fedora packages update with dnf/Discover. SAINT in `/opt/saint` updates by installing
+  a newer SAINTOS build. Rebranded files (`/etc/os-release`) may revert to Fedora's after a
+  `fedora-release` package update.
+- Tested in VirtualBox only. Not tested on physical hardware.
+
+See `docs/SAINTOS_RELEASE_STATUS.md` and `docs/DUAL_BOOT_INSTALLATION.md` in the source.

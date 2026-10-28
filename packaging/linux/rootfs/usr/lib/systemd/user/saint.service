@@ -1,0 +1,19 @@
+# SAINT as a per-user service in the Plasma session (no root). Off by default:
+# turn it on in the SAINTOS Control Center, or: systemctl --user enable --now saint
+[Unit]
+Description=SAINT assistant
+Documentation=file:///opt/saint/app/docs/GUIDE.md
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/saint --background
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=graphical-session.target

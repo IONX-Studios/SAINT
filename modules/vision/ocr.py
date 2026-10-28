@@ -1,8 +1,8 @@
 """
 modules/vision/ocr.py
 
-Text on screen with Windows' own OCR engine (Windows.Media.Ocr): local, fast, no model to
-download. It is the rung between UI Automation and a vision model in the observation ladder
+Text on screen with Windows' own OCR engine (Windows.Media.Ocr) on Windows, and Tesseract
+(`tesseract` CLI, TSV output) on Linux: local, fast, no model to download. It is the rung between UI Automation and a vision model in the observation ladder
 (modules/agent/autonomy/observe.py): used only when an app doesn't expose its text through
 accessibility, and never for anything Windows or an API can answer directly.
 
@@ -11,8 +11,13 @@ accessibility, and never for anything Windows or an API can answer directly.
 """
 
 import asyncio
+import csv
+import io
 import logging
+import os
 import re
+import shutil
+import subprocess
 from typing import Dict, List, Optional, Tuple
 
 log = logging.getLogger("saint.vision.ocr")
@@ -36,7 +41,49 @@ def _get_engine():
 
 
 def available() -> bool:
+    if os.name != "nt":
+        return shutil.which("tesseract") is not None
     return _get_engine() is not None
+
+
+def parse_tesseract_tsv(tsv: str) -> List[Dict]:
+    """Lines from ``tesseract ... tsv`` output, in the same shape as the Windows engine's."""
+    lines: Dict[tuple, Dict] = {}
+    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE):
+        text = (row.get("text") or "").strip()
+        if row.get("level") != "5" or not text:
+            continue
+        try:
+            conf = float(row.get("conf") or -1)
+            rect = tuple(int(row[k]) for k in ("left", "top", "width", "height"))
+        except (KeyError, ValueError):
+            continue
+        if conf < 30:                                   # noise / guesses
+            continue
+        key = (row["block_num"], row["par_num"], row["line_num"])
+        lines.setdefault(key, {"words": []})["words"].append({"text": text, "rect": rect})
+    out = []
+    for key in sorted(lines, key=lambda k: tuple(int(x) for x in k)):
+        words = lines[key]["words"]
+        out.append({"text": " ".join(w["text"] for w in words), "words": words})
+    return out
+
+
+def _recognize_tesseract(data: bytes) -> Dict:
+    exe = shutil.which("tesseract")
+    if not exe or not data:
+        return {"text": "", "lines": [], "available": bool(exe)}
+    try:
+        res = subprocess.run([exe, "stdin", "stdout", "--psm", "11", "tsv"], input=bytes(data),
+                             capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log.warning("ocr.tesseract_failed %s", e)
+        return {"text": "", "lines": [], "available": True}
+    if res.returncode != 0:
+        log.warning("ocr.tesseract_failed rc=%s %s", res.returncode, res.stderr[-300:])
+        return {"text": "", "lines": [], "available": True}
+    lines = parse_tesseract_tsv(res.stdout.decode("utf-8", "replace"))
+    return {"text": "\n".join(l["text"] for l in lines), "lines": lines, "available": True}
 
 
 async def _recognize_async(data: bytes):
@@ -56,6 +103,8 @@ async def _recognize_async(data: bytes):
 
 def recognize(data: bytes) -> Dict:
     """OCR an encoded image (PNG/JPEG bytes). Never raises: {"text": "", "lines": []} when it can't."""
+    if os.name != "nt":
+        return _recognize_tesseract(data)
     if not data or _get_engine() is None:
         return {"text": "", "lines": [], "available": _get_engine() is not None}
     try:

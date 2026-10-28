@@ -1,0 +1,8 @@
+#!/usr/bin/bash
+# First login for each user: open the Control Center on its Welcome page once.
+# The marker is written first, so a crash in the Control Center never loops on every login.
+set -u
+MARK="${XDG_CONFIG_HOME:-$HOME/.config}/saintos/firstrun-done"
+[ -e "$MARK" ] && exit 0
+mkdir -p "$(dirname "$MARK")" && date -Is > "$MARK"
+exec /usr/bin/saintos-control --welcome

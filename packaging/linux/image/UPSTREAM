@@ -1,0 +1,7 @@
+# Fedora's official KIWI image descriptions that SAINTOS builds on (the same ones Fedora's own
+# KDE Plasma live ISO is composed from). build_iso.sh clones this URL and checks out exactly this
+# commit; bump both together after reviewing the upstream changes.
+url=https://forge.fedoraproject.org/releng/kiwi-descriptions.git
+branch=f44
+commit=dfc49a5a10f69941179fdadd96aa6a5984f7c677
+fedora_release=44

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SAINTOS image layer for Fedora's official KIWI descriptions (packaging/linux/image/UPSTREAM).
+  SAINTOS-Live = Fedora's KDE-Desktop-Live profile (installer, live boot, Plasma) + SAINT + SAINTOS
+  branding. build_iso.sh includes this file into a copy of Fedora.kiwi; nothing upstream is edited
+  in place.
+-->
+<image>
+	<profiles>
+		<profile name="SAINTOS-Live" description="SAINTOS: Fedora Remix with KDE Plasma and SAINT (live installer ISO)">
+			<requires profile="KDE-Desktop-Live"/>
+		</profile>
+	</profiles>
+	<packages type="image" patternType="plusRecommended" profiles="SAINTOS-Live">
+		<!-- SAINT's Python runtime (its packages go into /opt/saint/venv from the build's wheelhouse) -->
+		<package name="python3.12"/>
+		<!-- Audio: sounddevice -> PortAudio, soundfile -> libsndfile; espeak-ng for Kokoro / the fallback voice -->
+		<package name="portaudio"/>
+		<package name="libsndfile"/>
+		<package name="espeak-ng"/>
+		<package name="wireplumber"/>
+		<!-- Qt runtime pieces PySide6's wheel expects -->
+		<package name="xcb-util-cursor"/>
+		<package name="libxkbcommon"/>
+		<!-- Desktop integration used by SAINT's Linux backends (core/platform_caps.py) -->
+		<package name="qt6-qttools"/>
+		<package name="wl-clipboard"/>
+		<package name="playerctl"/>
+		<package name="spectacle"/>
+		<package name="libnotify"/>
+		<package name="xdg-utils"/>
+		<package name="tesseract"/>
+		<package name="tesseract-langpack-eng"/>
+		<!-- Diagnostics (read-only) -->
+		<package name="pciutils"/>
+		<package name="mokutil"/>
+		<!-- Boot splash -->
+		<package name="plymouth-theme-spinner"/>
+	</packages>
+</image>

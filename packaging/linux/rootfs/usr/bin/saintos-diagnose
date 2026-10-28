@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# Read-only SAINTOS diagnostics: writes ~/saintos-diagnostics-<time>/ (no secrets, no memory contents).
+set -uo pipefail
+OUT="$HOME/saintos-diagnostics-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$OUT"
+cd /opt/saint/app || exit 1
+PY=/opt/saint/venv/bin/python
+cat /etc/os-release > "$OUT/os-release.txt"
+cat /usr/share/saintos/build-info.json > "$OUT/build-info.json" 2>/dev/null
+"$PY" tools/preflight.py --json "$OUT/preflight.json" > "$OUT/preflight.md" 2>&1
+"$PY" -m core.platform_caps > "$OUT/capabilities.json" 2>&1
+QT_QPA_PLATFORM=offscreen SAINT_DATA_DIR="$(mktemp -d)" "$PY" app.py --selftest "$OUT/selftest.json" \
+  > "$OUT/selftest.log" 2>&1
+{ systemctl --user status saint.service --no-pager; journalctl --user -u saint.service -n 300 --no-pager; } \
+  > "$OUT/service.txt" 2>&1
+echo "$OUT"

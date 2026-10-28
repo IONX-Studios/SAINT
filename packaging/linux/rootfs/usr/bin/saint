@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+# SAINT on SAINTOS: the system install in /opt/saint (app + its own Python environment).
+# Data lives in ~/.local/share/SAINT (core/paths.py: system_install()).
+#   saint                  open SAINT
+#   saint --background     start in the tray
+#   saint --selftest FILE  check the install without starting it
+set -euo pipefail
+APP=/opt/saint/app
+PY=/opt/saint/venv/bin/python
+if [ ! -x "$PY" ]; then
+  echo "SAINT isn't installed correctly: $PY is missing. Run saintos-diagnose." >&2
+  exit 1
+fi
+cd "$APP"
+exec "$PY" app.py "$@"

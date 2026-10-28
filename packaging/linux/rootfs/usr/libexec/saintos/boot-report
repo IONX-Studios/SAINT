@@ -1,0 +1,36 @@
+#!/usr/bin/bash
+# Report boot progress on ttyS0 for automated VM tests:
+#   SAINTOS-BOOT-OK <version> <live|installed>      graphical.target reached
+#   SAINTOS-DESKTOP-OK user=<name> session=<id>     a graphical (Wayland/X11) user session is active
+#   SAINTOS-SAINT-OK / SAINTOS-SAINT-FAIL <reason>  SAINT's offline self-test (no model, no network)
+#   SAINTOS-DESKTOP-TIMEOUT                         no session within 240 s
+set -u
+TTY=/dev/ttyS0
+say() { printf '%s\n' "$*" > "$TTY" 2>/dev/null || true; }
+VERSION=$(sed -n 's/^SAINTOS_VERSION=//p' /etc/os-release | tr -d '"')
+MODE=installed; grep -q 'rd.live.image' /proc/cmdline && MODE=live
+say "SAINTOS-BOOT-OK ${VERSION:-unknown} $MODE"
+
+for _ in $(seq 1 120); do
+  while read -r sid _uid user _seat _tty _rest; do
+    [ -n "$sid" ] || continue
+    type=$(loginctl show-session "$sid" -p Type --value 2>/dev/null)
+    state=$(loginctl show-session "$sid" -p State --value 2>/dev/null)
+    if { [ "$type" = wayland ] || [ "$type" = x11 ]; } && [ "$state" = active ]; then
+      say "SAINTOS-DESKTOP-OK user=$user session=$sid type=$type"
+      tmp=$(mktemp -d)
+      if out=$(cd /opt/saint/app && QT_QPA_PLATFORM=offscreen SAINT_DATA_DIR="$tmp" HOME="$tmp" \
+               timeout 180 /opt/saint/venv/bin/python app.py --selftest "$tmp/selftest.json" 2>&1); then
+        say "SAINTOS-SAINT-OK"
+      else
+        say "SAINTOS-SAINT-FAIL $(printf '%s' "$out" | tail -n 3 | tr '\n' ' ' | cut -c1-300)"
+      fi
+      cp "$tmp/selftest.json" /run/saintos-selftest.json 2>/dev/null
+      rm -rf "$tmp"
+      exit 0
+    fi
+  done < <(loginctl list-sessions --no-legend 2>/dev/null)
+  sleep 2
+done
+say "SAINTOS-DESKTOP-TIMEOUT"
+exit 0

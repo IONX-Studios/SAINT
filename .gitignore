@@ -62,3 +62,6 @@ dist/
 
 # The developer machine's VM SSH key (machine-specific)
 packaging/linux/vm/dev_host_key.pub
+
+# SAINTOS build output (ISOs are never committed)
+/dist/

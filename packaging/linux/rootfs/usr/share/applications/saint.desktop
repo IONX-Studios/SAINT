@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=SAINT
+GenericName=AI Assistant
+Comment=Local, voice-first AI assistant
+Exec=/usr/bin/saint
+Icon=saint
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=assistant;voice;ai;saint;
+StartupWMClass=SAINT
+SingleMainWindow=true
+Actions=Background;
+
+[Desktop Action Background]
+Name=Start in the background
+Exec=/usr/bin/saint --background

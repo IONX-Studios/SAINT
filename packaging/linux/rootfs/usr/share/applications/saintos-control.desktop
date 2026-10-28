@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SAINTOS Control Center
+GenericName=Assistant Settings
+Comment=SAINT service, AI providers and models, voice, permissions, data and diagnostics
+Exec=/usr/bin/saintos-control
+Icon=saintos
+Terminal=false
+Categories=Settings;System;
+Keywords=saint;saintos;assistant;ai;settings;diagnostics;

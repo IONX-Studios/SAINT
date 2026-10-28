@@ -29,12 +29,16 @@ import time
 import traceback
 from typing import Callable, Dict, List
 
-REQUIRED_IMPORTS = ["PySide6.QtWidgets", "PySide6.QtSvg", "requests", "PIL.Image", "numpy", "psutil",
-                    "onnxruntime", "sounddevice", "soundfile", "faster_whisper", "ctranslate2", "kokoro_onnx",
-                    "misaki.en", "en_core_web_sm", "espeakng_loader", "phonemizer", "segno", "keyring",
-                    "win32api", "win32gui", "pythoncom", "uiautomation", "pycaw.pycaw", "comtypes",
-                    "winrt.windows.media.control", "winrt.windows.media.ocr", "zeroconf", "cryptography"]
-OPTIONAL_IMPORTS = ["pyautogui"]
+COMMON_IMPORTS = ["PySide6.QtWidgets", "PySide6.QtSvg", "requests", "PIL.Image", "numpy", "psutil",
+                  "onnxruntime", "sounddevice", "soundfile", "faster_whisper", "ctranslate2", "kokoro_onnx",
+                  "misaki.en", "en_core_web_sm", "espeakng_loader", "phonemizer", "segno", "keyring",
+                  "zeroconf", "cryptography"]
+WINDOWS_IMPORTS = ["win32api", "win32gui", "pythoncom", "uiautomation", "pycaw.pycaw", "comtypes",
+                   "winrt.windows.media.control", "winrt.windows.media.ocr"]
+# Linux: the Secret Service (keyring backend) and D-Bus (KWin window control) — modules/desktop/linux.
+LINUX_IMPORTS = ["secretstorage", "jeepney", "modules.desktop.linux.kwin"]
+REQUIRED_IMPORTS = COMMON_IMPORTS + (WINDOWS_IMPORTS if sys.platform == "win32" else LINUX_IMPORTS)
+OPTIONAL_IMPORTS = ["pyautogui"] if sys.platform == "win32" else []
 
 
 class Report:
@@ -129,12 +133,17 @@ def _ocr():
     from PIL import Image, ImageDraw, ImageFont
     from modules.vision import ocr
     if not ocr.available():
-        raise RuntimeError("Windows OCR engine unavailable")
+        raise RuntimeError("OCR engine unavailable (Windows OCR / tesseract)")
     img = Image.new("RGB", (360, 80), "white")
-    try:
-        font = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 32)
-    except OSError:
-        font = ImageFont.load_default()
+    font = None
+    for path in ("C:/Windows/Fonts/segoeui.ttf", "/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf",
+                 "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"):
+        try:
+            font = ImageFont.truetype(path, 32)
+            break
+        except OSError:
+            continue
+    font = font or ImageFont.load_default()
     ImageDraw.Draw(img).text((12, 18), "Submit order", fill="black", font=font)
     buf = io.BytesIO()
     img.save(buf, "PNG")

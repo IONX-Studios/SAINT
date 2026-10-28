@@ -464,7 +464,19 @@ class TTSService:
         from modules.voice.sapi import SapiTTS, available
         reason = "; ".join(reasons)[:300] or "Kokoro isn't available"
         if not available():
-            raise RuntimeError(reason)
+            from modules.voice import espeak
+            if not espeak.available():
+                raise RuntimeError(reason)
+            engine = espeak.EspeakTTS(speed=kwargs.get("speed", 1.0), reason=reason)
+            engine._load()
+            logger.warning("TTS using espeak-ng until Kokoro works: %s", reason)
+            event_bus.emit_event(EventType.NOTIFY, {
+                "title": "Speaking with the basic voice",
+                "message": ("SAINT's own voice is downloading and switches on by itself when it's ready."
+                            if getattr(self, "_kokoro_fetch_started", False)
+                            else "SAINT's own voice (Kokoro) couldn't load — see the System page. Replies are "
+                                 "still spoken, with espeak-ng.")})
+            return engine, "espeak"
         engine = SapiTTS(speed=kwargs.get("speed", 1.0), reason=reason)
         engine._load()
         logger.warning("TTS using the Windows voice until Kokoro works: %s", reason)

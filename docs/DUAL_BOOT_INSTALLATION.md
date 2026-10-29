@@ -33,8 +33,9 @@ open the `SAINTOS-test` VM in VirtualBox. "Install to Hard Drive" inside the VM 
 | Partitions | 1 EFI 0.3 GB · 2 MSR · 3 **C: NTFS 1021.8 GB (622 GB free)** · 4 Recovery 2.1 GB |
 | Unallocated | **none** — the four partitions fill the disk |
 | Linux partitions | **none found on the internal disk** |
-| BitLocker / device encryption | **unknown** — needs an admin check (step 1) |
-| Boot mode / Secure Boot | **unknown** from an unprivileged shell — check `msinfo32` (step 1) |
+| BitLocker / device encryption | **C: is encrypted, "waiting for activation"** (Shell property `System.Volume.BitLockerProtection` = 8, read 2026-10-29). Shrink C: only from Windows; save the recovery key once protection is active (step 1) |
+| Boot mode / Secure Boot | **UEFI, Secure Boot on** (`%firmware_type%`, `HKLM\...\SecureBoot\State\UEFISecureBootEnabled=1`, read 2026-10-29). Leave it on |
+| Fast Startup | **on** (`HiberbootEnabled=1`) — turn it off in step 1.4 |
 
 **So Fedora is not installed yet.** The plan is to install it on this internal disk next to Windows,
 following the steps below. The installer ISO (Fedora KDE 44, `Fedora-KDE-Desktop-Live-44-1.7.x86_64.iso`,

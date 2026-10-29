@@ -127,6 +127,9 @@ if command -v desktop-file-validate >/dev/null; then
     check "desktop-file-validate $f" desktop-file-validate "$R/usr/share/applications/$f"
   done
 fi
+grep -qx 'ImageDir=/usr/share/plymouth/themes/saintos' "$R/usr/share/plymouth/themes/saintos/saintos.plymouth" 2>/dev/null \
+  && pass "Plymouth theme images come from the saintos theme" \
+  || fail "saintos.plymouth ImageDir isn't the saintos theme (the splash would show another theme's images)"
 grep -q 'Theme=saintos' "$R/etc/plymouth/plymouthd.conf" 2>/dev/null && pass "Plymouth default theme: saintos" \
   || fail "Plymouth default theme isn't saintos"
 [ -n "${ROOT2:-}" ] && { $SUDO umount "$ROOT2"; rmdir "$ROOT2"; }

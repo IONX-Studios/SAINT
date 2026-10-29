@@ -115,8 +115,12 @@ mkdir -p "$THEME"
 cp -a "$SPIN"/. "$THEME"/
 mv "$THEME/spinner.plymouth" "$THEME/saintos.plymouth"
 sed -i -e 's/^Name=.*/Name=SAINTOS/' -e 's/^Description=.*/Description=SAINTOS boot splash/' \
-       -e "s#$SPIN#$THEME#g" -e 's/^BackgroundStartColor=.*/BackgroundStartColor=0x0a0b0d/' \
+       -e "s#$SPIN#$THEME#g" -e "s#^ImageDir=.*#ImageDir=$THEME#" \
+       -e 's/^BackgroundStartColor=.*/BackgroundStartColor=0x0a0b0d/' \
        -e 's/^BackgroundEndColor=.*/BackgroundEndColor=0x0a0b0d/' "$THEME/saintos.plymouth"
+# Fedora's file says "themes//spinner" (double slash), which the path substitution above misses; the
+# splash then drew Fedora's watermark. ImageDir is set outright, and checked.
+grep -qx "ImageDir=$THEME" "$THEME/saintos.plymouth" || { echo "saintos.plymouth: ImageDir isn't $THEME" >&2; exit 1; }
 install -m0644 "$B/plymouth/watermark.png" "$THEME/watermark.png"
 plymouth-set-default-theme saintos
 

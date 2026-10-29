@@ -82,7 +82,10 @@ def newest_archive(folder: str) -> Optional[str]:
         if not e.is_file() or e.name.lower().endswith(_PARTIAL) or not is_archive(e.name):
             continue
         try:
-            t = max(e.stat().st_mtime, e.stat().st_ctime)
+            st = e.stat()
+            # Windows st_ctime is creation time (a copied-in file's mtime can be old). On Linux it's the
+            # inode change time, which a rename/chmod/touch resets, so only mtime means "downloaded".
+            t = max(st.st_mtime, st.st_ctime) if os.name == "nt" else st.st_mtime
         except OSError:
             continue
         if t > best_t:

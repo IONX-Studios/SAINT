@@ -180,7 +180,7 @@ def _extracted_into(info: Dict, folder: str, parent: str) -> bool:
     # Paths inside the archive may or may not include the top folder.
     present = 0
     for ent in files[:400]:
-        rel = ent["name"]
+        rel = ent["name"].replace("\\", os.sep)      # listing() names use "\"; Linux paths need "/"
         if os.path.exists(os.path.join(parent, rel)) or os.path.exists(os.path.join(folder, rel)):
             present += 1
     return present >= 0.9 * min(len(files), 400)

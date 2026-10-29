@@ -136,7 +136,9 @@ _Updated as work lands; see section 3 for the current verified state._
 | `gui_check.sh` | Drives the test VM's keyboard to open Konsole + SAINT and takes screenshots (`88f7df3`) |
 | SAINT Linux bugs found via the Linux test triage | Fixed + tested on Windows and Linux: newest download used inode `ctime` (`c0b19b5`); already-extracted archives never detected (`\` vs `/`) (`c0b19b5`); `open "/home/…"` not treated as a path (`019f66d`); Steam launch crashed (`os.startfile` doesn't exist on Linux) (`019f66d`); `resolve_folder("/home/…")` → None (`f46ce51`) |
 | Linux test guards | Windows-only tests skip on Linux; the 3 keyboard/mouse tests `xfail` (real gap: no input backend). Windows suite: 1513 passed, same 4 baseline env failures |
-| PortAudio/JACK abort at exit | Not reproducible (5 scenarios exit 0); skipping `Pa_Terminate` segfaults, so no change made |
+| PortAudio/JACK abort at exit | Not reproducible (5 scenarios exit 0, and the full suite below exited without it under load); skipping `Pa_Terminate` segfaults, so no change made |
+| Full Linux suite at `f46ce51` (Fedora 44 build VM, Python 3.12, SAINTOS runtime lock, nice 19 while KIWI ran) | **1494 passed, 5 failed, 19 skipped, 3 xfailed** (was 1475 / 30 / 6). Failures: `test_tts_fallback` ×2 (fail on Windows too, baseline); `test_overlay_shows_the_spotify_queue`, `test_pause_and_resume`, `test_unvalidated_replacement_is_never_learned` pass in isolation (2/2 runs): timing under load |
+| First-run voice-model download (`c7d0bb6`) | Setup no longer downloads ~470 MB on the GUI thread before the window; the voice stack's own background fetchers do it. Verified: the check makes no download call and returns at once |
 
 These SAINT fixes are **not in build 4's ISO** (it builds `4041e1f`); they go into the next build.
 

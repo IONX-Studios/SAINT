@@ -121,6 +121,34 @@ def keyring_service() -> str:
     return f"SAINT-profile-{name}" if name else "SAINT"
 
 
+def secret_collection_missing() -> bool:
+    """Linux Secret Service with no default collection yet (a new user, a live session): nothing can
+    be stored there, so a read should find nothing. keyring's get_password would instead *create* the
+    collection, KWallet answers with its create-a-wallet wizard, and the caller blocks until someone
+    answers it (SAINT's main window, built on the GUI thread, never appeared). Checked without creating
+    anything (~50 ms). Saving a secret still creates the wallet, when the prompt makes sense.
+    Every keyring *read* checks this first."""
+    try:
+        import keyring
+        if "SecretService" not in type(keyring.get_keyring()).__module__:
+            return False
+        import secretstorage
+        from secretstorage.collection import Collection
+        from secretstorage.exceptions import ItemNotFoundException
+        conn = secretstorage.dbus_init()
+    except Exception:
+        return False
+    try:
+        Collection(conn)                         # the default alias; raises if it doesn't exist
+        return False
+    except ItemNotFoundException:
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
 def resource_path(*parts: str) -> Path:
     """A read-only file shipped with SAINT (``resource_path("SAINT.png")``)."""
     return RESOURCE_ROOT.joinpath(*parts)

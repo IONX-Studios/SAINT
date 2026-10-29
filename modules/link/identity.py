@@ -280,6 +280,9 @@ class Identity:
     def _read_private(self, data: dict) -> Optional[bytes]:
         if data.get("private_key"):
             return bytes.fromhex(data["private_key"])
+        from core.paths import secret_collection_missing
+        if secret_collection_missing():              # no wallet yet: no key stored, and don't prompt
+            return None
         try:
             import keyring
             raw = keyring.get_password(self._service(), self.KEYRING_USER)

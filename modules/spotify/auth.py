@@ -16,7 +16,7 @@ from typing import Optional
 import requests
 
 from core.config import config
-from core.paths import keyring_service
+from core.paths import keyring_service, secret_collection_missing
 
 AUTH_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
@@ -69,6 +69,9 @@ class SpotifyAuth:
         return bool(self.client_id)
 
     def _load_saved(self):
+        if secret_collection_missing():              # no wallet yet: nothing saved, and don't prompt
+            self._token = None
+            return
         try:
             import keyring
             raw = keyring.get_password(keyring_service(), "spotify")

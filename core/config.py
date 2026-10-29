@@ -11,7 +11,7 @@ import logging
 import os
 import threading
 
-from core.paths import data_path, keyring_service
+from core.paths import data_path, keyring_service, secret_collection_missing
 
 log = logging.getLogger("saint.config")
 
@@ -721,7 +721,7 @@ class Config:
         kr = self._secret_store()
         if kr is None:
             return None
-        if self._secret_collection_missing(kr):
+        if secret_collection_missing():
             self._secrets[key] = ""                  # nothing can be stored yet; don't prompt for a wallet
             return ""
         try:
@@ -732,32 +732,6 @@ class Config:
             return None
         self._secrets[key] = value
         return value
-
-    @staticmethod
-    def _secret_collection_missing(kr) -> bool:
-        """Linux Secret Service with no default collection yet (a new user, a live session). keyring's
-        get_password then *creates* the collection, KWallet answers with its create-a-wallet wizard,
-        and the caller blocks until someone answers it: SAINT's main window is built on the GUI
-        thread and never appeared. Checked without creating anything (~50 ms). Saving a secret still
-        creates the wallet, which is when the prompt makes sense."""
-        try:
-            if "SecretService" not in type(kr.get_keyring()).__module__:
-                return False
-            import secretstorage
-            from secretstorage.collection import Collection
-            from secretstorage.exceptions import ItemNotFoundException
-            conn = secretstorage.dbus_init()
-        except Exception:
-            return False
-        try:
-            Collection(conn)                     # the default alias; raises if it doesn't exist
-            return False
-        except ItemNotFoundException:
-            return True
-        except Exception:
-            return False
-        finally:
-            conn.close()
 
     def _secret_write(self, key, value) -> bool:
         kr = self._secret_store()

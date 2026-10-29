@@ -120,6 +120,13 @@ def test_reading_a_key_never_prompts_to_create_a_wallet(tmp_path, monkeypatch):
     monkeypatch.setattr(keyring, "get_password", must_not_be_called)
     c = Config(tmp_path / "config.json")
     assert c.get("ai.api_key", "") == "" and closed == [1]
+    # the other keyring readers on the main window's path
+    from modules.spotify.auth import SpotifyAuth
+    from modules.link.identity import Identity
+    sp = SpotifyAuth.__new__(SpotifyAuth)
+    sp._load_saved()
+    assert sp._token is None
+    assert Identity._read_private(Identity.__new__(Identity), {"public_key": "00"}) is None
 
 
 def test_api_keys_live_in_the_secret_store_not_config_json(tmp_path):

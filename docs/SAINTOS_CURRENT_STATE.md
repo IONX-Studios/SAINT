@@ -158,6 +158,38 @@ These SAINT fixes are **not in build 4's ISO** (it builds `4041e1f`); they go in
 
 Structural validation is not a boot test. Boot results are recorded below only once observed.
 
+### VM boot test of build 4 — UEFI: PASS (2026-10-29)
+
+VirtualBox 7.0.20 on Hyper-V (Windows 11 host) · VM `SAINTOS-test`: **EFI**, 4 vCPU, 6 GB RAM, empty
+40 GB virtual disk (unused), NAT · ISO on virtual SATA DVD · `boot_test.ps1 -Firmware efi`.
+Evidence: `dist/boot-test-SAINTOS-test/` (serial log, screenshots, `result-live.json`).
+
+| Check | Result |
+|---|---|
+| GRUB | SAINTOS menu; default entry `Test this media & start SAINTOS` booted; media check 0–100 % passed. GRUB prints `lexer.c … syntax error` lines first — the official Fedora KDE 44 ISO prints the same in the same VM, and the menu works |
+| Kernel → live root | Booted; Plymouth spinner. **Defect: the splash shows the Fedora logo, not SAINTOS's** (the `saintos` theme is in the initrd; not yet diagnosed) |
+| `SAINTOS-BOOT-OK 0.1.0 live` | 158 s |
+| `SAINTOS-DESKTOP-OK user=liveuser type=wayland` | 158 s — Plasma 6 Wayland, autologin |
+| `SAINTOS-SAINT-OK` | 239 s — SAINT's offline self-test, run by the OS's boot-report service |
+| Desktop identity (screenshot) | SAINTOS Control Center opens on Welcome (first-run hook); Plasma Welcome "Welcome to SAINTOS!"; "Install SAINTOS" desktop icon; SAINTOS dark theme + orange accent; SAINTOS icons |
+| Shell / identity | Konsole: `/etc/os-release` `NAME="SAINTOS"`, `PRETTY_NAME="SAINTOS 0.1.0 (Fedora Remix 44)"`, hostname `localhost-live` |
+| Network | `ping fedoraproject.org`: 2/2, 0 % loss (NAT) |
+| SAINT app (`saint` in Konsole) | Started from `/opt/saint`; downloaded Kokoro (~2 min), `TTS service ready: kokoro`; runtime started (voice, wake, automation); AI = Ollama not installed (expected). **Main window never appeared — blocker, see below** |
+| Audio | Not tested (VM audio off) |
+
+**Blocker found and fixed (`c56a4c3`, `c67d786`): SAINT's window never opened on a fresh KDE user.**
+`MainWindow.__init__` → Settings `load()` reads `ai.api_key` (and the Spotify token) through
+`keyring` on the GUI thread. With no Secret Service default collection (every new user, every live
+session), `keyring.get_password` *creates* one → KWallet shows "create a new wallet" → `secretstorage`
+waits on the prompt with no timeout. Proven with a `faulthandler` stack dump of the GUI thread in the
+build VM's Plasma session (`… settings_ui.load → config.get → keyring.get_password →
+get_default_collection → create_collection → exec_prompt`). Fix: `core.paths.secret_collection_missing()`
+(no-create probe, ~50 ms) before every keyring read (config, Spotify, Link); saving a secret still
+creates the wallet. Verified in the same session: GUI thread reaches Qt's event loop, no prompt,
+`kwalletd6` not started, and KWin lists the windows **"SAINT"** and **"SAINT first-run check — SAINT"**.
+New test `test_reading_a_key_never_prompts_to_create_a_wallet` fails without the fix, passes with it.
+Not in build 4's ISO; build 6 (`0503e66`) has it.
+
 ### This laptop (dual-boot target), read 2026-10-29 without admin
 
 UEFI · Secure Boot **on** · C: BitLocker "waiting for activation" (shell property 8) · Fast Startup **on** ·

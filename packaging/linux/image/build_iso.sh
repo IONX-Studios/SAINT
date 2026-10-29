@@ -180,13 +180,18 @@ VOLID="SAINTOS-${fedora_release}-x86_64"
 # kiwi_t -> rpm_script_t"). Via python3 KIWI runs unconfined, like any other sudo command;
 # SELinux stays enforcing on the host and the image is relabelled by KIWI as usual.
 KIWI=(python3 -sP -c 'import sys; from kiwi.kiwi import main; sys.argv[0] = "kiwi-ng"; sys.exit(main())')
-# Temporary space must be on the build disk, and sudo drops TMPDIR, so both are passed explicitly:
-#  --temp-dir  KIWI writes the compressed root (~3 GB EROFS) there; its default /var/tmp is a live
-#              session's ~2.8 GB RAM overlay -> mkfs.erofs runs out of space.
-#  TMPDIR      mkfs.erofs -Efragments keeps an unlinked work file in $TMPDIR (default /tmp, tmpfs):
-#              gigabytes of RAM, and the build thrashes the page cache to a near halt.
+# Temporary space must be on the build disk (in a live session /var/tmp and /tmp are RAM):
+#  --temp-dir  KIWI writes the compressed root (~3 GB EROFS) there; its default /var/tmp is the
+#              ~2.8 GB live overlay -> mkfs.erofs runs out of space.
+#  /tmp        mkfs.erofs -Efragments keeps an unlinked work file of several GB in /tmp (tmpfs), and
+#              the build thrashes the page cache to a near halt. TMPDIR can't fix it: KIWI passes its
+#              environment into the image chroot, where dracut rejects the (nonexistent) path. So
+#              KIWI runs in a private mount namespace whose /tmp is a directory on the build disk;
+#              the chroot keeps its own /tmp and the rest of the system is unaffected.
+HOSTTMP="$WORK/hosttmp"; mkdir -p "$HOSTTMP"; chmod 1777 "$HOSTTMP"
 set +e
-$SUDO env TMPDIR="$TMPDIR" "${KIWI[@]}" --temp-dir "$TMPDIR" --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
+$SUDO unshare --mount --propagation private sh -c 'mount --bind "$1" /tmp && shift && exec "$@"' sh "$HOSTTMP" \
+  "${KIWI[@]}" --temp-dir "$TMPDIR" --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
   --description "$D" --target-dir "$WORK/out" \
   --set-type-attr "volid=$VOLID" --set-type-attr "application_id=SAINTOS" \
   --set-type-attr "publisher=SAINTOS (unofficial Fedora Remix)" 2>&1 | tee "$WORK/kiwi.log"

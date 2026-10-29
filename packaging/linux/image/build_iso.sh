@@ -61,6 +61,15 @@ if [ ${#missing[@]} -gt 0 ]; then
   Install: sudo dnf install -y kiwi kiwi-systemdeps distribution-gpg-keys git python3.12 xorriso"
 fi
 mkdir -p "$WORK"
+# Leftovers of an interrupted run. Never rm -rf a tree with something mounted in it (KIWI bind-mounts
+# /dev and /proc into its image root), and never build alongside another KIWI run or its package manager.
+if ps -eo args | grep -v grep | grep -qE "from kiwi\.kiwi import main|kiwi-ng .*system build|^dnf5 --config /kiwi_dnf5"; then
+  die "another KIWI build (or its dnf5) is still running; wait for it or stop it first"
+fi
+if findmnt -rno TARGET | grep -q "^$WORK/out"; then
+  die "something is still mounted under $WORK/out (an interrupted KIWI run): $(findmnt -rno TARGET | grep "^$WORK/out" | head -3 | tr '\n' ' ')— unmount it first"
+fi
+$SUDO rm -rf "$WORK/desc" "$WORK/out"        # stale outputs (also keeps the relabel below short)
 # SELinux (enforcing): rpm 6's confined database helper (rpmdb_t) may only create its database under a
 # few types (var_lib_t, tmp_t, rpm_var_lib_t, ...). A workspace under /var/tmp or a fresh disk gives
 # KIWI's image root user_tmp_t or unlabeled_t, and rpm fails with "can't create transaction lock

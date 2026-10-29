@@ -91,6 +91,37 @@ def test_openai_compatible_connection_is_really_tested():
     assert OpenAICompatibleProvider().test_connection("", timeout=1)["connected"] is False
 
 
+def test_reading_a_key_never_prompts_to_create_a_wallet(tmp_path, monkeypatch):
+    """Secret Service with no default collection (a live session): reading must not create one, which
+    made KWallet show its wizard and blocked the main window (found booting SAINTOS 2026-10-29)."""
+    import sys
+    import types
+    import keyring
+    from core.config import Config
+
+    class ItemNotFoundException(Exception):
+        pass
+
+    class Collection:
+        def __init__(self, conn):
+            raise ItemNotFoundException("Item does not exist!")
+
+    closed = []
+    fake = types.SimpleNamespace(dbus_init=lambda: types.SimpleNamespace(close=lambda: closed.append(1)))
+    monkeypatch.setitem(sys.modules, "secretstorage", fake)
+    monkeypatch.setitem(sys.modules, "secretstorage.collection", types.SimpleNamespace(Collection=Collection))
+    monkeypatch.setitem(sys.modules, "secretstorage.exceptions",
+                        types.SimpleNamespace(ItemNotFoundException=ItemNotFoundException))
+    SecretServiceKeyring = type("Keyring", (), {"__module__": "keyring.backends.SecretService"})
+    monkeypatch.setattr(keyring, "get_keyring", lambda: SecretServiceKeyring())
+
+    def must_not_be_called(*a):
+        raise AssertionError("get_password would create the collection (and prompt)")
+    monkeypatch.setattr(keyring, "get_password", must_not_be_called)
+    c = Config(tmp_path / "config.json")
+    assert c.get("ai.api_key", "") == "" and closed == [1]
+
+
 def test_api_keys_live_in_the_secret_store_not_config_json(tmp_path):
     import json as _json
     import keyring

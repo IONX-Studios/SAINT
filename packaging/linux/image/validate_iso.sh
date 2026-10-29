@@ -29,6 +29,14 @@ grep -qi 'El Torito.*UEFI\|platform_id.*0xef\|boot img :.*UEFI' <<<"$info" && pa
 
 $SUDO mount -o loop,ro "$ISO" "$MNT" || { fail "mount ISO"; exit 1; }
 check "EFI/BOOT/BOOTX64.EFI" test -s "$MNT/EFI/BOOT/BOOTX64.EFI"
+# Secure Boot (on by default on most PCs): the first-stage loader must be shim signed by Microsoft's UEFI CA.
+$SUDO grep -aq "UEFI SHIM" "$MNT/EFI/BOOT/BOOTX64.EFI" && $SUDO grep -aqE "Microsoft Corporation UEFI CA 20(11|23)" "$MNT/EFI/BOOT/BOOTX64.EFI" \
+  && pass "Secure Boot: BOOTX64.EFI is shim signed by the Microsoft UEFI CA" \
+  || fail "Secure Boot: BOOTX64.EFI isn't a Microsoft-signed shim (won't boot with Secure Boot on)"
+# USB sticks: written raw ("dd mode", Fedora Media Writer), the image must carry its own MBR + GPT.
+sysarea="$(head -c 1024 "$ISO" | od -An -tx1 -j510 -N10 | tr -d ' \n')"
+[ "${sysarea:0:4}" = 55aa ] && [ "${sysarea:4:16}" = 4546492050415254 ] && pass "hybrid image: MBR + GPT (boots from a USB stick)" \
+  || fail "not a hybrid image (no MBR/GPT): boots from DVD only, not from a USB stick"
 GRUB="$(ls "$MNT"/EFI/BOOT/grub.cfg "$MNT"/boot/grub2/grub.cfg 2>/dev/null | head -n1)"
 if [ -n "$GRUB" ]; then
   pass "grub.cfg ($GRUB)"

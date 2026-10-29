@@ -18,7 +18,7 @@ shot gui-0-desktop.png
 sleep 3
 "$here/vm_type.sh" "$vm" "konsole"
 sleep 8
-"$here/vm_type.sh" "$vm" "clear; grep -e name -e version /etc/os-release; hostname; ping -c2 -w5 fedoraproject.org"
+"$here/vm_type.sh" "$vm" "clear; grep -i -e name -e version /etc/os-release; hostname; ping -c2 -w5 fedoraproject.org"
 sleep 10
 shot gui-1-identity-network.png
 "$here/vm_type.sh" "$vm" "saint"

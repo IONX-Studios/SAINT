@@ -127,7 +127,18 @@ _Updated as work lands; see section 3 for the current verified state._
 
 | Step | Result |
 |---|---|
-| KIWI temp dir on the build disk (`325f328`) | Committed; rebuild started |
+| KIWI temp dir on the build disk (`325f328`) | Build 2 got past the overlay limit, but `mkfs.erofs` thrashed: its unlinked `-Efragments` work file was in `/tmp` (tmpfs, RAM). Diagnosed from `/proc/<pid>/fd` → `/tmp/tmp.XXXX (deleted)`; stopped |
+| `TMPDIR` through `sudo` (`432efe7`) | Build 3 failed in 15 min: KIWI passes `TMPDIR` into the image chroot; dracut: "Invalid tmpdir" |
+| Private mount namespace, `/tmp` = `$WORK/hosttmp` on the build disk (`4041e1f`) | Wrapper tested in the VM (inside: `/dev/sda`; outside: tmpfs unchanged; KIWI never binds `/tmp` into the chroot). Build 4 running |
+| `boot_test.ps1` | Never parsed on Windows PowerShell 5.1 (em dash read as a quote); fixed + `-Firmware efi\|bios` (`de7b354`) |
+| `validate_iso.sh` | Added BIOS El Torito + GRUB i386-pc checks, and every GRUB kernel/initrd path must exist on the ISO (`92e57fa`) |
+| CI | New `static-checks` job (shell/PowerShell parse, ASCII `.ps1`, XML/JSON/.desktop) — run locally, not on GitHub (`bc63419`) |
+| `gui_check.sh` | Drives the test VM's keyboard to open Konsole + SAINT and takes screenshots (`88f7df3`) |
+| SAINT Linux bugs found via the Linux test triage | Fixed + tested on Windows and Linux: newest download used inode `ctime` (`c0b19b5`); already-extracted archives never detected (`\` vs `/`) (`c0b19b5`); `open "/home/…"` not treated as a path (`019f66d`); Steam launch crashed (`os.startfile` doesn't exist on Linux) (`019f66d`); `resolve_folder("/home/…")` → None (`f46ce51`) |
+| Linux test guards | Windows-only tests skip on Linux; the 3 keyboard/mouse tests `xfail` (real gap: no input backend). Windows suite: 1513 passed, same 4 baseline env failures |
+| PortAudio/JACK abort at exit | Not reproducible (5 scenarios exit 0); skipping `Pa_Terminate` segfaults, so no change made |
+
+These SAINT fixes are **not in build 4's ISO** (it builds `4041e1f`); they go into the next build.
 
 ## 3. Current status
 

@@ -1,5 +1,7 @@
 """Tool framework: validation, permissions/confirmation, LLM exposure, desktop safety."""
 
+import os
+
 import pytest
 
 from core.config import config
@@ -71,6 +73,7 @@ def test_desktop_disabled_blocks_everything():
     assert not r.success and "turned off" in r.error.lower()
 
 
+@pytest.mark.xfail(os.name != "nt", reason="no Linux keyboard/mouse backend yet (ydotool or the RemoteDesktop portal)")
 def test_desktop_key_validation(monkeypatch):
     from modules.desktop.controller import DesktopController
     config.set("desktop.enabled", True, persist=False)
@@ -94,5 +97,6 @@ def test_app_resolution_never_uses_shell():
     from modules.desktop.apps import AppCatalog
     cat = AppCatalog()
     cat._entries = {}
-    assert cat.resolve("notepad").target == "notepad.exe"
+    if os.name == "nt":
+        assert cat.resolve("notepad").target == "notepad.exe"
     assert cat.resolve("rm -rf / && calc") is None

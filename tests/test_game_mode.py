@@ -11,6 +11,7 @@ from core.events import event_bus, EventType
 STEAM = gm._norm(r"D:\SteamLibrary\steamapps\common")
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows game paths and .exe names")
 def test_classifies_steam_games_known_names_and_ignores_tools():
     dirs = [STEAM]
     assert gm.is_game_process("TheFinals.exe", r"D:\SteamLibrary\steamapps\common\THE FINALS\Discovery.exe", dirs)

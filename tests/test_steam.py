@@ -92,7 +92,10 @@ def test_launch_refuses_unregistered_library(steam_dirs, monkeypatch):
     from modules.steam import tools, library
     monkeypatch.setattr(tools, "steam_library", SteamLibrary())
     opened = []
-    monkeypatch.setattr(tools.os, "startfile", lambda uri: opened.append(uri))
+    if os.name == "nt":
+        monkeypatch.setattr(tools.os, "startfile", lambda uri: opened.append(uri))
+    else:
+        monkeypatch.setattr(tools.subprocess, "Popen", lambda args, **kw: opened.append(args[1]))
     assert tools.launch("terraria") == {"launched": "Terraria", "appid": "105600"}
     assert opened == ["steam://rungameid/105600"]
     from modules.automation.tools import ToolError
@@ -148,7 +151,8 @@ def test_custom_uri_alias_is_a_uri(monkeypatch):
     from core.config import config
     from modules.desktop.apps import AppCatalog
     monkeypatch.setitem(config._data["desktop"], "apps", {"game library": "steam://nav/games",
-                                                          "notes": "C:\\Tools\\Obsidian.exe"})
+                                                          "notes": "C:\\Tools\\Obsidian.exe" if os.name == "nt"
+                                                          else "/opt/Obsidian/obsidian"})
     cat = AppCatalog()
     e = cat.resolve("game library")
     assert e.kind == "uri" and e.process_hint == "steam"

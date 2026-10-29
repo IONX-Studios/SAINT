@@ -261,6 +261,7 @@ def test_demonstration_sees_moves_and_ignores_title_clicks():
     assert summarize(events) == ["move Claude to my right screen"]
 
 
+@pytest.mark.skipif(os.name != "nt", reason="the demonstration recorder is Windows-only, so SAINT doesn't offer it")
 def test_learning_by_watching_asks_first(monkeypatch):
     from modules.learning import demonstration
     monkeypatch.setitem(config._data.setdefault("learning", {}), "watch_and_learn", True)
@@ -272,6 +273,7 @@ def test_learning_by_watching_asks_first(monkeypatch):
 
 
 # ---------------------------------------------------------------- scrolling
+@pytest.mark.xfail(os.name != "nt", reason="no Linux keyboard/mouse backend yet (ydotool or the RemoteDesktop portal)")
 def test_scroll_uses_real_wheel_notches(monkeypatch):
     import pyautogui
     from modules.desktop.controller import desktop

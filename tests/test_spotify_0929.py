@@ -7,6 +7,8 @@ to 80%", "type ... in my room ...") and Start with Windows."""
 
 import time
 
+import os
+
 import pytest
 
 from modules.spotify.client import SpotifyAPIError
@@ -356,6 +358,7 @@ def test_type_a_long_sentence_has_no_target():
 
 
 # ------------------------------------------------------------------ start with Windows
+@pytest.mark.skipif(os.name != "nt", reason="Start-menu startup shortcut")
 def test_autostart_shortcut(monkeypatch, tmp_path):
     from core import autostart
     from core.config import config

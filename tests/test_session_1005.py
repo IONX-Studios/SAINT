@@ -367,6 +367,7 @@ def test_now_playing_prefers_the_live_media_session_when_the_poll_is_behind():
 # ---------------------------------------------------------------------- #
 # Test profiles: SAINT without your real data
 # ---------------------------------------------------------------------- #
+@pytest.mark.skipif(os.name != "nt", reason="%LOCALAPPDATA% profile layout")
 def test_profiles_keep_test_data_apart(monkeypatch, tmp_path):
     import json
     from core import paths, profiles

@@ -3,6 +3,8 @@
 import importlib
 import sys
 
+import os
+
 import pytest
 
 import core.paths as paths
@@ -26,12 +28,14 @@ def frozen(monkeypatch, tmp_path):
     importlib.reload(paths)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="SAINT.exe + %LOCALAPPDATA% layout (Linux uses XDG and /opt/saint)")
 def test_user_data_goes_to_local_app_data(frozen):
     mod, _bundle, local = frozen
     assert mod.data_dir() == local / "SAINT"
     assert mod.data_path("config.json").parent == local / "SAINT"
 
 
+@pytest.mark.skipif(os.name != "nt", reason="SAINT.exe + %LOCALAPPDATA% layout (Linux uses XDG and /opt/saint)")
 def test_shipped_assets_come_from_the_bundle(frozen):
     mod, bundle, local = frozen
     assert mod.resolve_project_path("SAINT.png") == bundle / "SAINT.png"
@@ -40,6 +44,7 @@ def test_shipped_assets_come_from_the_bundle(frozen):
     assert mod.resolve_project_path("data/vision/flux") == local / "SAINT" / "vision" / "flux"
 
 
+@pytest.mark.skipif(os.name != "nt", reason="SAINT.exe + %LOCALAPPDATA% layout (Linux uses XDG and /opt/saint)")
 def test_a_user_copy_of_an_asset_wins(frozen):
     mod, _bundle, local = frozen
     mine = local / "SAINT" / "wake" / "hey_saint.onnx"
@@ -67,6 +72,7 @@ def source_with_install(monkeypatch, tmp_path):
     importlib.reload(paths)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="SAINT.exe + %LOCALAPPDATA% layout (Linux uses XDG and /opt/saint)")
 def test_source_run_shares_the_installed_apps_data(source_with_install):
     mod, local = source_with_install
     assert not mod.FROZEN
@@ -76,6 +82,7 @@ def test_source_run_shares_the_installed_apps_data(source_with_install):
     assert mod.resolve_project_path("data/wake/hey_saint.onnx") == mod.PROJECT_ROOT / "data" / "wake" / "hey_saint.onnx"
 
 
+@pytest.mark.skipif(os.name != "nt", reason="SAINT.exe + %LOCALAPPDATA% layout (Linux uses XDG and /opt/saint)")
 def test_source_run_starts_the_installed_app(source_with_install, monkeypatch):
     mod, local = source_with_install
     import core.autostart as autostart

@@ -4,6 +4,8 @@ closing games, desktop clicks, Voicemeeter, "my X playlist", random speech."""
 
 import time
 
+import os
+
 import pytest
 
 from core.config import config
@@ -141,6 +143,7 @@ def test_agent_tries_harder_after_a_not_found_failure(monkeypatch):
     assert seen == ["I couldn't find a window for all my windows."] and res.ok
 
 
+@pytest.mark.skipif(os.name != "nt", reason="the demonstration recorder is Windows-only, so SAINT doesn't offer it")
 def test_agent_offers_to_learn_by_watching_when_it_cannot_plan(monkeypatch):
     from modules.agent import agent as agent_mod
     monkeypatch.setattr(agent_mod, "route", lambda t: None)
@@ -548,6 +551,7 @@ def test_whisper_is_relative_to_how_loud_the_user_talks():
     assert p.gain() == 1.0
 
 
+@pytest.mark.skipif(os.name != "nt", reason="the demonstration recorder is Windows-only, so SAINT doesn't offer it")
 def test_no_plan_hands_over_to_the_model_then_offers_to_learn(monkeypatch):
     from modules.agent import agent as agent_mod
     monkeypatch.setattr(agent_mod, "route", lambda t: None)

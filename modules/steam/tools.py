@@ -10,6 +10,7 @@ Everything goes through Steam's own steam:// links, so Steam does the work
 
 import logging
 import os
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -24,9 +25,14 @@ def _available():
 
 def _open(uri: str):
     try:
-        os.startfile(uri)
+        if os.name == "nt":
+            os.startfile(uri)
+        else:                                  # Linux: the desktop hands steam:// links to Steam
+            subprocess.Popen(["xdg-open", uri], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError as e:
-        raise ToolError(f"Windows couldn't open Steam: {e.strerror or e}", "LAUNCH_FAILED")
+        where = "Windows" if os.name == "nt" else "The desktop"
+        raise ToolError(f"{where} couldn't open Steam: {e.strerror or e}", "LAUNCH_FAILED")
 
 
 log = logging.getLogger("saint.steam")

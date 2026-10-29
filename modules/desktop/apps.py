@@ -358,7 +358,10 @@ class AppCatalog:
         # A real path ("C:\Users\me\Downloads\Bloxstrap.exe", quoted or not):
         # start exactly that file, never something that sounds like it.
         raw = (name or "").strip().strip("\"'“”")
-        if re.match(r"^[a-z]:[\\/]", raw, re.I) and os.path.exists(raw):
+        if os.name != "nt" and raw.startswith("~/"):
+            raw = os.path.expanduser(raw)
+        is_path = re.match(r"^[a-z]:[\\/]", raw, re.I) or (os.name != "nt" and raw.startswith("/"))
+        if is_path and os.path.exists(raw):
             stem = os.path.splitext(os.path.basename(raw))[0]
             return AppEntry(stem, "path", raw, "path", process_hint=stem.lower())
 

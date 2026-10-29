@@ -1,5 +1,7 @@
 """Regressions from the 2026-09-28 evening session (Rocket League / YouTube / Spotify)."""
 
+import os
+
 import pytest
 
 from core.audio_echo import EchoGate
@@ -81,6 +83,7 @@ def test_no_chime_after_saint_asks_by_default():
     assert config.get("voice.reply_chime", False) is False
 
 
+@pytest.mark.xfail(os.name != "nt", reason="no Linux keyboard/mouse backend yet (ydotool or the RemoteDesktop portal)")
 def test_media_keys_work_during_game_mode_without_switching_windows(monkeypatch):
     import pyautogui
     from core import game_mode as gm

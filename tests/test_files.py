@@ -76,12 +76,14 @@ def test_resolve_folder(tmp_path, monkeypatch):
     monkeypatch.setitem(config._data["files"], "known", {"emulators": str(tmp_path)})
     assert resolve_folder("my games folder") == str(tmp_path)
     assert resolve_folder("the emulators folder") == str(tmp_path)
-    assert resolve_folder("C drive") == "C:\\"
+    if os.name == "nt":
+        assert resolve_folder("C drive") == "C:\\"
     assert resolve_folder(str(tmp_path)) == str(tmp_path)
     assert resolve_folder("my imaginary folder") is None
 
 
 # ---------------------------------------------------------------- scanning
+@pytest.mark.skipif(os.name != "nt", reason="NTFS junctions (mklink /J)")
 def test_scan_tree_totals_and_skips_junctions(tmp_path):
     _write(tmp_path / "a" / "big.bin", 5000)
     _write(tmp_path / "a" / "deep" / "x" / "y.bin", 3000)
@@ -179,9 +181,9 @@ Details: RAR 5
 def test_parse_unrar_listing_and_destination(tmp_path):
     rows = archives.parse_unrar_listing(UNRAR_LISTING)
     assert len(rows) == 4 and rows[0] == {"name": "Game Folder\\data.bin", "size": 3000000, "dir": False}
-    assert archives.destination_for("x\\game.rar", "D:\\Games", ["Game Folder"], rows) == "D:\\Games"
+    assert archives.destination_for(os.path.join("x", "game.rar"), "D:\\Games", ["Game Folder"], rows) == "D:\\Games"
     loose = [{"name": "setup.exe", "size": 1, "dir": False}, {"name": "readme.txt", "size": 1, "dir": False}]
-    assert archives.destination_for("x\\Tool v2.part1.rar", "D:\\Games", ["readme.txt", "setup.exe"], loose) == \
+    assert archives.destination_for(os.path.join("x", "Tool v2.part1.rar"), "D:\\Games", ["readme.txt", "setup.exe"], loose) == \
         os.path.join("D:\\Games", "Tool v2")
 
 
@@ -311,7 +313,8 @@ def test_the_logged_winrar_request_is_one_extraction(captured, monkeypatch, tmp_
     ("where are my roms", "files.find"),
     ("open my downloads", "files.open_folder"),
     ("go to my downloads folder", "files.open_folder"),
-    ("open the C drive", "files.open_folder"),
+    pytest.param("open the C drive", "files.open_folder",
+                 marks=pytest.mark.skipif(os.name != "nt", reason="drive letters")),
     ("empty the recycle bin", "files.recycle_bin"),
     ("open disk cleanup", "files.disk_cleanup"),
 ])

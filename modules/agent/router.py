@@ -16,6 +16,7 @@ tools, see modules/agent/llm.py).
 """
 
 import logging
+import os
 import random
 import re
 import time
@@ -1751,8 +1752,10 @@ _SINGLE_PARSERS = [parse_system, parse_saint_ui, parse_dev, parse_web, parse_you
                    parse_taskmgr, parse_winctl, parse_spotify, parse_extras, parse_desktop_nl, parse_desktop]
 
 
+# A drive-letter path; on Linux also an absolute ("/home/me/x") or home-relative ("~/x") one.
+_PATH_START = r"[a-z]:[\\/]" if os.name == "nt" else r"(?:[a-z]:[\\/]|/|~/)"
 _OPEN_PATH = re.compile(r"^(?:(?:hey\s+)?saint[,.!\s]+)?(?:open|launch|start|run)\s+(?:(?P<label>.+?)\s+"
-                        r"(?:at|from|in|with)\s+)?[\"'“]?(?P<path>[a-z]:[\\/][^\"'”]+?)[\"'”]?[.!]?$", re.I)
+                        r"(?:at|from|in|with)\s+)?[\"'“]?(?P<path>" + _PATH_START + r"[^\"'”]+?)[\"'”]?[.!]?$", re.I)
 
 
 def parse_open_path(text: str) -> Optional[Intent]:
@@ -1763,7 +1766,7 @@ def parse_open_path(text: str) -> Optional[Intent]:
     if not m:
         return None
     import os
-    path = m.group("path").strip()
+    path = os.path.expanduser(m.group("path").strip())
     label = (m.group("label") or "").strip() or os.path.basename(path)
 
     def run():

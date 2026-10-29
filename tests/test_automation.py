@@ -171,7 +171,7 @@ def test_shell_command(automation_module):
     assert result["result"]["exit_code"] == 0
     
     # Command with error
-    result = m.execute_tool("run_command", confirmed=True, command="cmd /c exit 1")
+    result = m.execute_tool("run_command", confirmed=True, command="exit 1")     # cmd.exe and sh both
     assert result["success"] is True
     assert result["result"]["exit_code"] == 1
     

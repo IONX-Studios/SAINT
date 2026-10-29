@@ -206,25 +206,24 @@ class SetupWizard:
             ))
 
     def _check_model_assets(self):
-        """Download the large voice models from the GitHub release on first run."""
+        """Report the large voice models. Downloading them is left to the voice stack, which fetches
+        each one in its own background thread at startup (STT warm-up, TTS Kokoro fetch). Doing it
+        here blocked the GUI thread before the main window existed: a fresh install showed nothing for
+        minutes (a few hundred MB), and a second downloader would race the voice stack's."""
         try:
-            from core.model_assets import ensure_all
-            assets = ensure_all()
-            if assets.get("whisper") and assets.get("kokoro"):
-                self.results.append(CheckResult(
-                    name="Voice models",
-                    passed=True,
-                    message="Whisper + Kokoro downloaded and ready",
-                    details=assets,
-                ))
+            from core.model_assets import kokoro_ready, whisper_ready
+            assets = {"whisper": whisper_ready(), "kokoro": kokoro_ready()}
+            if assets["whisper"] and assets["kokoro"]:
+                message = "Whisper + Kokoro ready"
             else:
-                missing = ", ".join(k for k, ready in assets.items() if not ready)
-                self.results.append(CheckResult(
-                    name="Voice models",
-                    passed=False,
-                    message=f"Could not download: {missing}. SAINT can retry on first voice use.",
-                    details=assets,
-                ))
+                missing = " + ".join(k.capitalize() for k, ready in assets.items() if not ready)
+                message = f"{missing} not downloaded yet; voice downloads it in the background when it starts"
+            self.results.append(CheckResult(
+                name="Voice models",
+                passed=True,
+                message=message,
+                details=assets,
+            ))
         except Exception as e:
             self.results.append(CheckResult(
                 name="Voice models",

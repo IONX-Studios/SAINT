@@ -120,8 +120,12 @@ Install the packages above, clone the repository, run `build_iso.sh`.
 Options: `--allow-dirty` (build uncommitted tracked changes), `--keep-work` (keep KIWI's image root
 for inspection), `--no-validate`.
 
-Timing on the dev laptop's build VM (8 vCPU): staging ~2 min, KIWI package install ~20 min (less
-with a warm `kiwi-cache`), dracut ~3 min, EROFS ~10 min.
+Timing on the dev laptop's build VM (8 vCPU, VirtualBox on Hyper-V), measured 2026-10-29: staging
+~2 min, KIWI package install + configure ~25 min (warm `kiwi-cache`), dracut ~3 min, **EROFS 1 h+**.
+EROFS (`lzma,level=6`, 1 MB clusters, `-Efragments`, Fedora's own settings) is CPU-bound: small
+files collect in an uncompressed fragment file (5+ GB, in `$WORK/hosttmp`) and the image file grows
+slowly until the end. More vCPUs shorten it; low output growth with ~700% CPU and no memory pressure
+(`/proc/pressure/memory`) is normal.
 
 ## Troubleshooting
 

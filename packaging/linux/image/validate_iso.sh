@@ -59,6 +59,16 @@ if [ -n "$GRUB" ]; then
     [ -s "$MNT/$r" ] && pass "grub reference $r exists" || fail "grub references $r, which isn't on the ISO"
   done
 fi
+# UEFI hand-off: EFI/BOOT/grub.cfg finds the ISO by an identifier file, then loads the main menu.
+# A missing identifier leaves a UEFI boot at a grub> prompt.
+if [ -f "$MNT/EFI/BOOT/grub.cfg" ]; then
+  ident="$(sed -n 's/^search --file --set=root //p' "$MNT/EFI/BOOT/grub.cfg" | head -n1)"
+  if [ -n "$ident" ]; then
+    [ -f "$MNT$ident" ] && pass "UEFI grub.cfg finds the ISO via $ident" || fail "UEFI grub.cfg searches for $ident, which isn't on the ISO"
+  fi
+  next="$(sed -n 's/^configfile (\$root)//p' "$MNT/EFI/BOOT/grub.cfg" | head -n1)"
+  [ -z "$next" ] || { [ -s "$MNT$next" ] && pass "UEFI grub.cfg loads $next" || fail "UEFI grub.cfg loads $next, which is missing"; }
+fi
 # Legacy BIOS: an El Torito BIOS entry and GRUB's i386-pc modules.
 grep -qiE 'El Torito boot img :.*BIOS' <<<"$info" && pass "El Torito BIOS boot image" || fail "no BIOS El Torito boot image"
 { [ -d "$MNT/boot/grub2/i386-pc" ] || [ -d "$MNT/boot/x86_64/loader/grub2/i386-pc" ]; } && pass "GRUB i386-pc (BIOS) modules" \

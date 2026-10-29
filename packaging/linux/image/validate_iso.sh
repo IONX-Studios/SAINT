@@ -43,6 +43,18 @@ KERNEL="$(ls "$MNT"/boot/x86_64/loader/linux "$MNT"/images/pxeboot/vmlinuz 2>/de
 INITRD="$(ls "$MNT"/boot/x86_64/loader/initrd "$MNT"/images/pxeboot/initrd.img 2>/dev/null | head -n1)"
 [ -n "$KERNEL" ] && [ -s "$KERNEL" ] && pass "kernel ($KERNEL)" || fail "kernel not found"
 [ -n "$INITRD" ] && [ -s "$INITRD" ] && pass "initrd ($INITRD)" || fail "initrd not found"
+# Every kernel/initrd a GRUB entry names must exist on the ISO (paths with GRUB variables are skipped).
+if [ -n "$GRUB" ]; then
+  refs="$(grep -E '^\s*(linux|linuxefi|initrd|initrdefi)\s' "$GRUB" | awk '{print $2}' | sed 's/^([^)]*)//' | grep -v '\$' | sort -u)"
+  [ -n "$refs" ] || fail "grub: no linux/initrd lines"
+  for r in $refs; do
+    [ -s "$MNT/$r" ] && pass "grub reference $r exists" || fail "grub references $r, which isn't on the ISO"
+  done
+fi
+# Legacy BIOS: an El Torito BIOS entry and GRUB's i386-pc modules.
+grep -qiE 'El Torito boot img :.*BIOS' <<<"$info" && pass "El Torito BIOS boot image" || fail "no BIOS El Torito boot image"
+ls -d "$MNT"/boot/grub2/i386-pc "$MNT"/boot/x86_64/loader/grub2/i386-pc >/dev/null 2>&1 && pass "GRUB i386-pc (BIOS) modules" \
+  || fail "no GRUB i386-pc directory (BIOS boot)"
 if [ -n "$INITRD" ] && command -v lsinitrd >/dev/null; then
   $SUDO lsinitrd "$INITRD" 2>/dev/null | grep -q 'dmsquash-live' && pass "initrd: dmsquash-live module" \
     || fail "initrd: no dmsquash-live (won't find the live root)"

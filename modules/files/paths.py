@@ -81,6 +81,9 @@ def resolve_folder(spoken: str) -> Optional[str]:
         return None
     if re.match(r"^[a-z]:[\\/]", s, re.I) or s.startswith("\\\\"):
         return os.path.normpath(s) if os.path.exists(s) else None
+    if os.name != "nt" and (s.startswith("/") or s.startswith("~/")):      # Linux: "/home/me/Games", "~/Games"
+        s = os.path.expanduser(s)
+        return os.path.normpath(s) if os.path.exists(s) else None
     low = re.sub(r"^(?:the|my|your)\s+", "", s.lower())
     low = re.sub(r"\s+(?:folder|directory|dir)$", "", low).strip()
     m = re.match(r"^([a-z])(?::)?(?:\s+drive)?$", low) or re.match(r"^drive\s+([a-z])$", low)

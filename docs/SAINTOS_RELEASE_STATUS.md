@@ -1,7 +1,7 @@
 # SAINTOS release status
 
 Living record of what is **verified**, with evidence, for the SAINTOS ISO. Anything not listed as
-verified hasn't been shown to work. Updated 2026-10-28.
+verified hasn't been shown to work. Updated 2026-10-29. The broader current-state report is [SAINTOS_CURRENT_STATE.md](SAINTOS_CURRENT_STATE.md).
 
 ## Release candidate
 
@@ -61,6 +61,9 @@ Each fix is in the scripts, so a fresh build host doesn't need them redone by ha
 | `rpm: can't create transaction lock ... (Permission denied)` | SELinux: rpm 6's `rpmdb_t` can't create its database under `user_tmp_t`/`unlabeled_t`, the labels a `/var/tmp` workspace or fresh disk gives KIWI's image root | Label the workspace `var_lib_t` (`5511e45`). Verified with `sesearch` and `rpm --root … --initdb` |
 | VM can't reach the host's `127.0.0.1` bootstrap server | VirtualBox 7 NAT has `localhost-reachable` off by default | Read-only transient shared folder instead |
 | Typed commands arrive mangled | `keyboardputstring` sticks Shift under Hyper-V | `vm_type.sh` types one character at a time; commands kept lowercase |
+| Build reaches `mkfs.erofs`, then would hit ENOSPC (found 2026-10-29) | KIWI's temp dir defaulted to `/var/tmp` = the live session's ~2.8 GB RAM overlay; `TMPDIR` exported by the script is dropped by `sudo` | `--temp-dir "$WORK/tmp"` (`325f328`) |
+| EROFS step slows to MBs per minute, `kswapd0` busy, SSH times out | `mkfs.erofs -Efragments` keeps a multi-GB unlinked file in `/tmp` (tmpfs) | KIWI runs in a private mount namespace whose `/tmp` is on the build disk (`4041e1f`). Passing `TMPDIR` instead (`432efe7`) broke dracut in the chroot ("Invalid tmpdir") |
+| `boot_test.ps1` won't parse on Windows PowerShell 5.1 | UTF-8 em dash without BOM read as cp1252; byte 0x94 is a closing quote | ASCII only (`de7b354`) |
 
 SELinux stayed **enforcing** throughout. The build VM's tools were updated from the April live media
 to current Fedora 44 updates (rpm 6.0.2, dnf5 5.4.6, selinux-policy 44.11).
@@ -72,6 +75,13 @@ to current Fedora 44 updates (rpm 6.0.2, dnf5 5.4.6, selinux-policy 44.11).
 run, the interpreter aborted at exit: PortAudio's JACK host API asserted in `Pa_Terminate`
 (`pa_jack.c:867`). That's a real Linux issue: SAINT could crash on exit on systems with
 pipewire-jack.
+
+**Follow-up 2026-10-29:** not reproducible outside that run. With pipewire-jack 1.6.2 and PortAudio
+19.7.0 in the same VM, these all exit cleanly (rc 0): import + device query, an open input stream at
+exit, five `_terminate()`/`_initialize()` cycles, concurrent queries from threads, and a fork. Skipping
+`Pa_Terminate` at exit is **not** a fix: it segfaults (rc 139), because the JACK client thread
+outlives the interpreter. The abort is still open, most likely load-dependent (KIWI was running);
+retest on an idle machine. No code change made.
 
 | Group | Tests | Verdict |
 |---|---|---|

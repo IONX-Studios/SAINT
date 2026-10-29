@@ -68,5 +68,10 @@ $summary = [ordered]@{ vm = $Name; firmware = $Firmware; mode = $(if ($FromDisk)
                        seconds = [int]((Get-Date) - $started).TotalSeconds; markers = $seen; serial_log = $serial }
 $summary | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $out "result-$($summary.mode).json")
 Write-Output "BOOT TEST $result ($($summary.mode), $($summary.seconds)s) - evidence in $out"
-if (-not $Keep) { & $vb controlvm $Name poweroff 2>$null | Out-Null }
+# VBoxManage prints poweroff progress on stderr; under "Stop", PowerShell 5.1 makes that an error and
+# the script exited 1 after a PASS. The VM state, not stderr, says whether it worked.
+if (-not $Keep) {
+    $ErrorActionPreference = "Continue"
+    & $vb controlvm $Name poweroff 2>&1 | Out-Null
+}
 if ($result -ne "PASS") { exit 1 }

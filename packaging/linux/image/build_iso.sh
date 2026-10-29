@@ -180,11 +180,13 @@ VOLID="SAINTOS-${fedora_release}-x86_64"
 # kiwi_t -> rpm_script_t"). Via python3 KIWI runs unconfined, like any other sudo command;
 # SELinux stays enforcing on the host and the image is relabelled by KIWI as usual.
 KIWI=(python3 -sP -c 'import sys; from kiwi.kiwi import main; sys.argv[0] = "kiwi-ng"; sys.exit(main())')
-# --temp-dir: KIWI writes the compressed root filesystem (~3 GB EROFS) to its temp dir, /var/tmp by
-# default. In a live session that's the RAM-backed overlay (~2.8 GB), so mkfs.erofs runs out of space.
-# sudo drops TMPDIR, so the workspace must be passed explicitly.
+# Temporary space must be on the build disk, and sudo drops TMPDIR, so both are passed explicitly:
+#  --temp-dir  KIWI writes the compressed root (~3 GB EROFS) there; its default /var/tmp is a live
+#              session's ~2.8 GB RAM overlay -> mkfs.erofs runs out of space.
+#  TMPDIR      mkfs.erofs -Efragments keeps an unlinked work file in $TMPDIR (default /tmp, tmpfs):
+#              gigabytes of RAM, and the build thrashes the page cache to a near halt.
 set +e
-$SUDO "${KIWI[@]}" --temp-dir "$TMPDIR" --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
+$SUDO env TMPDIR="$TMPDIR" "${KIWI[@]}" --temp-dir "$TMPDIR" --shared-cache-dir "$WORK/kiwi-cache" --type=iso --profile=SAINTOS-Live --kiwi-file=Fedora.kiwi --color-output system build \
   --description "$D" --target-dir "$WORK/out" \
   --set-type-attr "volid=$VOLID" --set-type-attr "application_id=SAINTOS" \
   --set-type-attr "publisher=SAINTOS (unofficial Fedora Remix)" 2>&1 | tee "$WORK/kiwi.log"

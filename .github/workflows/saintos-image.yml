@@ -11,6 +11,35 @@ permissions:
   contents: read
 
 jobs:
+  static-checks:
+    # Seconds, no privileges: catches broken scripts and metadata before the 1-2 hour image build.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: sudo apt-get update && sudo apt-get install -y desktop-file-utils libxml2-utils
+      - name: Shell scripts parse
+        run: |
+          for f in $(git ls-files 'packaging/linux/*.sh' packaging/linux/rootfs/usr/bin packaging/linux/rootfs/usr/libexec); do
+            head -n1 "$f" | grep -q bash && { bash -n "$f" || exit 1; }
+          done
+      - name: PowerShell scripts are ASCII (Windows PowerShell 5.1 reads BOM-less files as ANSI)
+        run: "! grep -nP '[^\\x00-\\x7F]' $(git ls-files '*.ps1')"
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $bad = 0
+          foreach ($f in (git ls-files '*.ps1')) {
+            $e = $null; [System.Management.Automation.Language.Parser]::ParseFile("$PWD/$f", [ref]$null, [ref]$e) | Out-Null
+            if ($e) { $e | ForEach-Object { Write-Output "${f}:$($_.Extent.StartLineNumber): $($_.Message)" }; $bad++ }
+          }
+          exit $bad
+      - name: Image metadata is well-formed
+        run: |
+          xmllint --noout packaging/linux/image/saintos.xml
+          for f in $(git ls-files 'packaging/linux/*.json'); do python3 -m json.tool "$f" >/dev/null || exit 1; done
+          for f in $(git ls-files 'packaging/linux/rootfs/usr/share/applications/*.desktop'); do desktop-file-validate "$f"; done
+
   linux-tests:
     runs-on: ubuntu-24.04
     steps:

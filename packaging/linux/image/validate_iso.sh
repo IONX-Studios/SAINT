@@ -61,12 +61,15 @@ if [ -n "$GRUB" ]; then
 fi
 # Legacy BIOS: an El Torito BIOS entry and GRUB's i386-pc modules.
 grep -qiE 'El Torito boot img :.*BIOS' <<<"$info" && pass "El Torito BIOS boot image" || fail "no BIOS El Torito boot image"
-ls -d "$MNT"/boot/grub2/i386-pc "$MNT"/boot/x86_64/loader/grub2/i386-pc >/dev/null 2>&1 && pass "GRUB i386-pc (BIOS) modules" \
+{ [ -d "$MNT/boot/grub2/i386-pc" ] || [ -d "$MNT/boot/x86_64/loader/grub2/i386-pc" ]; } && pass "GRUB i386-pc (BIOS) modules" \
   || fail "no GRUB i386-pc directory (BIOS boot)"
 if [ -n "$INITRD" ] && command -v lsinitrd >/dev/null; then
-  $SUDO lsinitrd "$INITRD" 2>/dev/null | grep -q 'dmsquash-live' && pass "initrd: dmsquash-live module" \
+  # List once and grep the text: `lsinitrd | grep -q` fails under pipefail (grep exits at the first
+  # match, lsinitrd gets SIGPIPE), which reported modules that are there as missing.
+  initrd_list="$($SUDO lsinitrd "$INITRD" 2>/dev/null)"
+  grep -q 'dmsquash-live' <<<"$initrd_list" && pass "initrd: dmsquash-live module" \
     || fail "initrd: no dmsquash-live (won't find the live root)"
-  $SUDO lsinitrd "$INITRD" 2>/dev/null | grep -q 'plymouth/themes/saintos' && pass "initrd: SAINTOS boot splash" \
+  grep -q 'plymouth/themes/saintos' <<<"$initrd_list" && pass "initrd: SAINTOS boot splash" \
     || fail "initrd: SAINTOS Plymouth theme not included"
 fi
 LIVE="$(ls "$MNT"/LiveOS/squashfs.img 2>/dev/null | head -n1)"

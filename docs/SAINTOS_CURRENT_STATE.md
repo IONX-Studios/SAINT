@@ -144,4 +144,22 @@ These SAINT fixes are **not in build 4's ISO** (it builds `4041e1f`); they go in
 
 ## 3. Current status
 
-_Pending the rebuild._
+### ISO (build 4)
+
+| | |
+|---|---|
+| File | `dist/SAINTOS-x86_64.iso` (on the dev laptop: `C:\Users\senior\Documents\SAINTOS\SAINT\dist\SAINTOS-x86_64.iso`) |
+| Size / SHA-256 | 3,707,322,368 bytes · `768f377278d23ba00736a49ae0bf09c2b03f303927d85857f8772882de0aab58` (matches `SHA256SUMS`, checked in the build VM and with Windows `Get-FileHash` after copying) |
+| Source | SAINT `4041e1f`, clean tree · kiwi-descriptions f44 `dfc49a5` · KIWI 11.1.1 · Fedora 44 · kernel 7.2.13-200.fc44 |
+| Build | `build_iso.sh` exited after step 7; KIWI exit 0; no ignored errors. Its own step-7 validation ran the older validator as `liveuser` and reported 3 failures — all three were validator bugs (root-only files; `lsinitrd \| grep -q` under `pipefail`; a two-path `ls`), fixed in `b54325d` |
+| Structural validation | **52/52 PASS** with `validate_iso.sh` at `de647cc` run as root (`dist/VALIDATION.txt`): volume id; UEFI + BIOS El Torito; **Secure Boot: `BOOTX64.EFI` is shim signed by the Microsoft UEFI CA**; **hybrid MBR + GPT (USB-bootable)**; UEFI `grub.cfg` hand-off (identifier file + main config); GRUB menu entries, live options, `root=live:CDLABEL=SAINTOS-44-x86_64`; every GRUB kernel/initrd path exists; GRUB i386-pc; initrd has `dmsquash-live` and the SAINTOS Plymouth theme; EROFS root mounts; os-release = SAINTOS 0.1.0; SAINT app, venv, PySide6/onnxruntime/faster-whisper; launchers, services, branding, Anaconda, Plasma |
+| Boot menu | `Start SAINTOS` · **`Test this media & start SAINTOS` (default, 10 s)** · Troubleshooting → `Start SAINTOS in basic graphics mode` |
+| Not in this ISO | The SAINT Linux fixes after `4041e1f` (files, Steam, exact paths, first-run download). Build 5 (`de647cc`+) has them |
+
+Structural validation is not a boot test. Boot results are recorded below only once observed.
+
+### This laptop (dual-boot target), read 2026-10-29 without admin
+
+UEFI · Secure Boot **on** · C: BitLocker "waiting for activation" (shell property 8) · Fast Startup **on** ·
+one 1 TB NVMe (GPT): EFI 260 MB, MSR, C: 1021.8 GB (579 GB free), Recovery 2 GB · no unallocated space.
+See [DUAL_BOOT_INSTALLATION.md](DUAL_BOOT_INSTALLATION.md).

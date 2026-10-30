@@ -6,5 +6,6 @@ Comment=SAINT service, AI providers and models, voice, permissions, data and dia
 Exec=/usr/bin/saintos-control
 Icon=saintos
 Terminal=false
+NoDisplay=true
 Categories=Settings;System;
 Keywords=saint;saintos;assistant;ai;settings;diagnostics;

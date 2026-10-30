@@ -98,9 +98,17 @@ PY
   install -Dm0755 -t "$pkgdir/usr/bin" "$fs"/usr/bin/{saint,saintos-control,saintos-apps,saintos-diagnose}
   install -Dm0644 -t "$pkgdir/usr/share/applications" "$fs"/usr/share/applications/*.desktop
   install -Dm0644 -t "$pkgdir/usr/lib/systemd/user" "$fs/usr/lib/systemd/user/saint.service"
-  install -Dm0644 -t "$pkgdir/usr/lib/systemd/system" "$fs/usr/lib/systemd/system/saintos-boot-report.service"
-  install -Dm0755 -t "$pkgdir/usr/libexec/saintos" "$fs"/usr/libexec/saintos/{boot-report,firstrun}
+  install -Dm0644 -t "$pkgdir/usr/lib/systemd/system" "$fs"/usr/lib/systemd/system/{saintos-boot-report,saint-ollama-model}.service
+  install -Dm0755 -t "$pkgdir/usr/libexec/saintos" "$fs"/usr/libexec/saintos/{boot-report,firstrun,ollama-model}
   install -Dm0644 -t "$pkgdir/etc/xdg/autostart" "$fs/etc/xdg/autostart/saintos-firstrun.desktop"
   install -Dm0644 "$srcdir/app/packaging/linux/apps/catalog.json" "$pkgdir/usr/share/saintos/apps.json"
   install -Dm0644 "$srcdir/app/SAINT.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/saint.png"
+  # Plasma integration: Alt+` (KGlobalAccel), and the KWin script that places the Halo and the overlay
+  # on Wayland and opens SAINT from the top screen edge.
+  install -Dm0644 -t "$pkgdir/usr/share/kglobalaccel" "$fs/usr/share/kglobalaccel/saint-overlay.desktop"
+  cp -a "$fs/usr/share/kwin" "$pkgdir/usr/share/kwin"
+  install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kwinrc" <<'EOF'
+[Plugins]
+saint-shellEnabled=true
+EOF
 }

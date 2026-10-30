@@ -80,12 +80,20 @@ def halo(size, center, radius, width, glow) -> Image.Image:
 
 
 def wallpaper(w: int, h: int, name: str = "SAINTOS", subtitle: str = "Fedora Remix  ·  KDE Plasma") -> Image.Image:
+    """SAINT front and centre: the SAINT mark inside the Halo ring, the wordmark under it."""
     s = h / 1080
-    center = (int(w * 0.66), int(h * 0.46))
+    center = (w // 2, int(h * 0.42))
+    radius = int(200 * s)
     img = _radial((w, h), BG_LIFT, BG, center, int(h * 0.9)).convert("RGBA")
-    img = Image.alpha_composite(img, halo((w, h), center, int(250 * s), max(2, int(5 * s)), int(28 * s)))
+    img = Image.alpha_composite(img, halo((w, h), center, radius, max(2, int(5 * s)), int(28 * s)))
+    mark = Image.open(ROOT / "SAINT.png").convert("RGBA").resize((int(radius * 1.25),) * 2, Image.LANCZOS)
+    img.alpha_composite(mark, (center[0] - mark.width // 2, center[1] - mark.height // 2))
     d = ImageDraw.Draw(img)
-    d.text((int(72 * s), h - int(120 * s)), name, font=font(int(44 * s)), fill=TEXT + (235,))
+    word = font(int(64 * s))
+    spaced = " ".join(name)                                   # letter-spaced wordmark
+    box = d.textbbox((0, 0), spaced, font=word)
+    d.text((center[0] - (box[2] - box[0]) // 2, center[1] + radius + int(56 * s)), spaced, font=word,
+           fill=TEXT + (240,))
     d.text((int(74 * s), h - int(66 * s)), subtitle, font=font(int(18 * s)), fill=MUTED + (200,))
     return img.convert("RGB")
 

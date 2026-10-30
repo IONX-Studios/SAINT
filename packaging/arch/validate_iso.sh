@@ -72,7 +72,9 @@ for f in usr/bin/plasmashell usr/bin/sddm usr/share/wayland-sessions/plasma.desk
          usr/bin/dolphin usr/bin/paru usr/bin/calamares usr/bin/ollama usr/bin/flatpak usr/bin/grub-install usr/bin/os-prober \
          etc/calamares/settings.conf etc/calamares/branding/halo/branding.desc usr/lib/halo/calamares-cleanup \
          usr/share/applications/install-halo.desktop usr/share/plymouth/themes/halo/halo.plymouth \
-         usr/share/wallpapers/SAINTOS/contents/images/1920x1080.png usr/share/halo/build-info.json; do
+         usr/share/wallpapers/SAINTOS/contents/images/1920x1080.png usr/share/halo/build-info.json \
+         usr/share/kglobalaccel/saint-overlay.desktop usr/share/kwin/scripts/saint-shell/contents/code/main.js \
+         usr/lib/systemd/system/saint-ollama-model.service usr/bin/kbuildsycoca6 usr/bin/notify-send; do
   check "image has /$f" test -e "$R/$f"
 done
 check "Discover isn't installed (SAINT's Store replaces it)" test ! -e "$R/usr/bin/plasma-discover"
@@ -80,9 +82,14 @@ S="$R/etc/systemd/system"
 [ "$(readlink "$S/display-manager.service")" = /usr/lib/systemd/system/sddm.service ] && pass "SDDM is the display manager" || fail "display-manager.service isn't SDDM"
 [ "$(readlink "$S/default.target")" = /usr/lib/systemd/system/graphical.target ] && pass "boots to graphical.target" || fail "default.target isn't graphical"
 for u in multi-user.target.wants/NetworkManager.service multi-user.target.wants/halo-live.service \
-         multi-user.target.wants/halo-pacman-init.service graphical.target.wants/saintos-boot-report.service; do
+         multi-user.target.wants/halo-pacman-init.service graphical.target.wants/saintos-boot-report.service \
+         multi-user.target.wants/ollama.service multi-user.target.wants/saint-ollama-model.service; do
   check "enabled: $u" test -L "$S/$u"
 done
+check "boot doesn't wait for the network" test ! -e "$S/network-online.target.wants/NetworkManager-wait-online.service"
+grep -q '^X-KDE-Shortcuts=Alt+`' "$R/usr/share/kglobalaccel/saint-overlay.desktop" && pass "Alt+\` opens SAINT's overlay" || fail "overlay shortcut missing"
+grep -q 'applications:saint.desktop' "$R/usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/saintos-defaults.js" \
+  && pass "SAINT pinned once on the taskbar" || fail "SAINT isn't pinned"
 grep -q '^ConditionKernelCommandLine=archisobasedir' "$S/halo-live.service" && pass "live setup only runs on the live ISO" || fail "halo-live.service has no live-only condition"
 # Nothing live-only may be baked into the image: the installer copies it to disk verbatim.
 check "image has no live user" bash -c "! grep -q '^liveuser:' '$R/etc/passwd'"

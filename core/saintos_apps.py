@@ -31,7 +31,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 FLATHUB = "https://dl.flathub.org/repo/flathub.flatpakrepo"
 _CATALOG_PATHS = [Path("/usr/share/saintos/apps.json"),
@@ -137,9 +137,10 @@ def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] =
     if flat:
         steps.append(Step("Flathub (for your user)", ["flatpak", "remote-add", "--user", "--if-not-exists",
                                                       "flathub", FLATHUB], []))
-        steps.append(Step("Apps from Flathub: " + ", ".join(a.name for a in flat),
-                          ["flatpak", "install", "--user", "-y", "--noninteractive", "flathub",
-                           *[a.ref for a in flat]], [a.id for a in flat]))
+        # One app per step: progress and the result are per app, and one failure doesn't take the rest along.
+        for a in flat:
+            steps.append(Step(f"{a.name} (Flathub)", ["flatpak", "install", "--user", "-y", "--noninteractive",
+                                                      "flathub", a.ref], [a.id]))
     for a in apps:
         if a.method == "npm":
             steps.append(Step(f"{a.name} (npm, into ~/.local)",
@@ -173,25 +174,91 @@ def installed(app: App, run: Callable = subprocess.run, manager: Optional[str] =
     return False
 
 
+def blockers(cmdline: str = "", exists: Callable[[str], bool] = os.path.exists) -> Tuple[List[str], List[str]]:
+    """What would make an install fail or not last, said before it starts: (errors, warnings)."""
+    errors, warnings = [], []
+    if not cmdline:
+        try:
+            cmdline = Path("/proc/cmdline").read_text()
+        except OSError:
+            cmdline = ""
+    if exists("/var/lib/pacman/db.lck"):
+        errors.append("Another app install or update is running (pacman is busy). Try again when it's finished.")
+    if "archisobasedir=" in cmdline or "rd.live.image" in cmdline:
+        warnings.append("This is the live session: apps install into memory and are gone after a restart. "
+                        "Install Halo first to keep them.")
+    return errors, warnings
+
+
+_PERCENT = re.compile(r"(\d{1,3})\s?%")
+
+
 def run_plan(steps: List[Step], on_line: Callable[[str], None] = print,
-             popen: Callable = subprocess.Popen) -> Dict[str, bool]:
+             popen: Callable = subprocess.Popen,
+             on_step: Optional[Callable[[int, int, Step, str, int], None]] = None) -> Dict[str, bool]:
     """Run each step, streaming its output. A failed step doesn't stop the others; the result says which
-    apps' steps succeeded (app id -> True/False)."""
+    apps' steps succeeded (app id -> True/False).
+
+    ``on_step(index, total, step, status, percent)`` reports progress: status is "started", "progress"
+    (percent from the tool's own output), "done" or "failed"."""
     result: Dict[str, bool] = {}
-    for step in steps:
+    report = on_step or (lambda *a: None)
+    for i, step in enumerate(steps):
         on_line(f"==> {step.label}")
+        report(i, len(steps), step, "started", 0)
+        last = -1
         try:
             proc = popen(step.argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             for line in proc.stdout:
-                on_line(line.rstrip())
+                line = line.rstrip()
+                on_line(line)
+                m = _PERCENT.findall(line)
+                if m and (pct := min(100, int(m[-1]))) != last:
+                    last = pct
+                    report(i, len(steps), step, "progress", pct)
             ok = proc.wait() == 0
         except FileNotFoundError as e:
             on_line(f"    {e}")
             ok = False
         on_line("    done" if ok else f"    FAILED ({' '.join(step.argv[:3])} ...)")
+        report(i, len(steps), step, "done" if ok else "failed", 100 if ok else last)
         for app_id in step.apps:
             result[app_id] = ok and result.get(app_id, True)
     return result
+
+
+def summary(result: Dict[str, bool], catalog: Dict[str, App]) -> Tuple[str, str]:
+    """The notification after an install: (title, body) naming every app installed and every one that failed."""
+    ok = [catalog[i].name for i, good in result.items() if good and i in catalog]
+    bad = [catalog[i].name for i, good in result.items() if not good and i in catalog]
+    if ok and not bad:
+        title = f"Installed {len(ok)} app{'s' if len(ok) != 1 else ''}"
+    elif ok:
+        title = f"Installed {len(ok)}, {len(bad)} failed"
+    else:
+        title = "Nothing was installed"
+    body = "\n".join([*(f"✓ {n}" for n in ok), *(f"✗ {n}" for n in bad)])
+    return title, body or "No apps were selected."
+
+
+def finish(result: Dict[str, bool], catalog: Dict[str, App], run: Callable = subprocess.run,
+           which: Callable[[str], Optional[str]] = shutil.which) -> Tuple[str, str]:
+    """After an install: rebuild the app menu so new apps show up without logging out, and say what was
+    installed in a desktop notification (Linux). Returns the notification's (title, body)."""
+    title, body = summary(result, catalog)
+    quiet = dict(capture_output=True, timeout=60)
+    for cmd in (["kbuildsycoca6"], ["update-desktop-database", os.path.expanduser("~/.local/share/applications")]):
+        if which(cmd[0]):
+            try:
+                run(cmd, **quiet)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    if which("notify-send"):
+        try:
+            run(["notify-send", "--app-name=SAINT", "--icon=saint", title, body], **quiet)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return title, body
 
 
 def main(argv=None) -> int:
@@ -221,6 +288,7 @@ def main(argv=None) -> int:
         print(f"Missing: {', '.join(missing)}", file=sys.stderr)
         return 1
     result = run_plan(steps)
+    finish(result, catalog)
     failed = [i for i, ok in result.items() if not ok]
     print("\nInstalled: " + (", ".join(i for i, ok in result.items() if ok) or "nothing"))
     if failed:

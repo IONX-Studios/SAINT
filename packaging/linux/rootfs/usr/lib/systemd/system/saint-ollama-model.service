@@ -1,0 +1,21 @@
+# Sets up SAINT's local AI once: pulls a small Ollama model (llama3.2:3b, ~2 GB) in the background,
+# at the lowest CPU and disk priority, retrying until it has a network. Not in the live session (it
+# would fill the RAM overlay); done once, then never again (the marker file).
+[Unit]
+Description=SAINT: set up the local AI model (Ollama)
+Wants=ollama.service
+After=ollama.service network.target
+ConditionKernelCommandLine=!archisobasedir
+ConditionPathExists=!/var/lib/ollama/.saint-model-ready
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/saintos/ollama-model llama3.2:3b
+Restart=on-failure
+RestartSec=120
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+
+[Install]
+WantedBy=multi-user.target

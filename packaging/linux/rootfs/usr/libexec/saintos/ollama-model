@@ -1,0 +1,20 @@
+#!/usr/bin/bash
+# Pull SAINT's default Ollama model once (saint-ollama-model.service). Exits non-zero (systemd retries
+# in 2 minutes) while Ollama or the network isn't there yet.
+set -eu
+MODEL="${1:?model}"
+MARK=/var/lib/ollama/.saint-model-ready
+for _ in $(seq 1 30); do
+  curl -fsS -m 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1 && break
+  sleep 2
+done
+curl -fsS -m 3 http://127.0.0.1:11434/api/version >/dev/null || { echo "Ollama isn't answering yet"; exit 1; }
+if ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -qx "$MODEL"; then
+  echo "$MODEL is already there"
+else
+  echo "pulling $MODEL"
+  ollama pull "$MODEL"
+fi
+install -d -o ollama -g ollama /var/lib/ollama 2>/dev/null || install -d /var/lib/ollama
+date -Is > "$MARK"
+echo "SAINT's local AI is ready: $MODEL"

@@ -11,7 +11,7 @@ import logging
 import os
 import threading
 
-from core.paths import data_path, keyring_service, secret_collection_missing
+from core.paths import data_path, keyring_service, secret_collection_missing, system_install
 
 log = logging.getLogger("saint.config")
 
@@ -553,6 +553,12 @@ DEFAULT_CONFIG = {
         "data_dir": "data",
     },
 }
+
+# Halo (and SAINTOS) set Ollama up with a small model in the background (saint-ollama-model.service):
+# llama3.2:3b, ~2 GB, tool-calling. A settings file still wins.
+HALO_OLLAMA_MODEL = "llama3.2:3b"
+if system_install():
+    DEFAULT_CONFIG["ai"]["model"] = HALO_OLLAMA_MODEL
 
 
 def _migrate(data: dict) -> dict:

@@ -216,6 +216,10 @@ ln -sf /usr/lib/systemd/system/vboxservice.service "$S/multi-user.target.wants/v
 ln -sf /etc/systemd/system/halo-live.service "$S/multi-user.target.wants/halo-live.service"
 ln -sf /etc/systemd/system/halo-pacman-init.service "$S/multi-user.target.wants/halo-pacman-init.service"
 ln -sf /usr/lib/systemd/system/saintos-boot-report.service "$S/graphical.target.wants/saintos-boot-report.service"
+# SAINT's local AI: Ollama always on (idle it uses almost nothing), its small model pulled once in the
+# background on an installed system (not in the live session).
+ln -sf /usr/lib/systemd/system/ollama.service "$S/multi-user.target.wants/ollama.service"
+ln -sf /usr/lib/systemd/system/saint-ollama-model.service "$S/multi-user.target.wants/saint-ollama-model.service"
 BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 install -d "$A/usr/share/halo"
 python - "$A/usr/share/halo/build-info.json" <<PY

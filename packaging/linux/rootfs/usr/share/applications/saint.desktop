@@ -7,11 +7,23 @@ Exec=/usr/bin/saint
 Icon=saint
 Terminal=false
 Categories=Utility;Accessibility;
-Keywords=assistant;voice;ai;saint;
-StartupWMClass=SAINT
+Keywords=assistant;voice;ai;saint;settings;apps;store;
+StartupWMClass=saint
 SingleMainWindow=true
-Actions=Background;
+Actions=Overlay;Settings;Background;Quit;
+
+[Desktop Action Overlay]
+Name=Open the overlay
+Exec=/usr/bin/saint --toggle-overlay
+
+[Desktop Action Settings]
+Name=SAINT Settings
+Exec=/usr/bin/saint --page Settings
 
 [Desktop Action Background]
 Name=Start in the background
 Exec=/usr/bin/saint --background
+
+[Desktop Action Quit]
+Name=Quit SAINT
+Exec=/usr/bin/saint --quit

@@ -384,20 +384,29 @@ def build_window(start_page: str = "Welcome"):
         if missing:
             astatus.setText("Missing: " + ", ".join(missing))
             return
+        errors, warnings = sa.blockers()
+        if errors:
+            astatus.setText(" ".join(errors))
+            return
         install_btn.setEnabled(False)
         alog.clear()
-        astatus.setText(f"Installing {len(chosen)} app(s)…")
+        note = (" ".join(warnings) + "\n") if warnings else ""
+        astatus.setText(f"{note}Installing {len(chosen)} app(s)…")
+
+        def progress(i, total, step, status, pct):
+            what = {"started": "starting", "progress": f"{pct} %", "done": "done", "failed": "failed"}[status]
+            astatus.setText(f"{note}Step {i + 1} of {total}: {step.label} — {what}")
 
         def finished(res):
             install_btn.setEnabled(True)
             if isinstance(res, Exception):
                 astatus.setText(f"Stopped: {res}")
                 return
-            ok = [catalog[i].name for i, good in res.items() if good]
-            bad = [catalog[i].name for i, good in res.items() if not good]
-            astatus.setText((f"Installed: {', '.join(ok)}. " if ok else "") + (f"Failed: {', '.join(bad)}." if bad else ""))
+            title, body = sa.finish(res, catalog)          # menu refreshed + notification listing the apps
+            astatus.setText(f"{title}. " + body.replace("\n", "  "))
             mark_installed()
-        in_background(lambda: sa.run_plan(steps, on_line=lambda t: bridge.line.emit(alog.appendPlainText, t)),
+        in_background(lambda: sa.run_plan(steps, on_line=lambda t: bridge.line.emit(alog.appendPlainText, t),
+                                          on_step=lambda *a: bridge.line.emit(lambda _t: progress(*a), "")),
                       finished)
     install_btn.clicked.connect(do_install)
     if catalog and os.name != "nt":

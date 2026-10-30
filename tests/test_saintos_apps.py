@@ -27,8 +27,9 @@ def test_plan_groups_installs_and_asks_for_admin_once(catalog):
     dnf = [a for a in argvs if a[:2] == ["pkexec", "dnf"]]
     assert len(dnf) == 1 and "nodejs" in dnf[0] and "git" in dnf[0] and dnf[0].count("nodejs") == 1
     assert ["flatpak", "remote-add", "--user", "--if-not-exists", "flathub", sa.FLATHUB] in argvs
-    flat = next(a for a in argvs if a[:2] == ["flatpak", "install"])
-    assert "--user" in flat and flat[-2:] == ["com.valvesoftware.Steam", "com.discordapp.Discord"]
+    flat = [a for a in argvs if a[:2] == ["flatpak", "install"]]          # one per app: progress per app
+    assert all("--user" in a for a in flat)
+    assert [a[-1] for a in flat] == ["com.valvesoftware.Steam", "com.discordapp.Discord"]
     assert ["npm", "install", "-g", "--prefix", "/home/me/.local", "@anthropic-ai/claude-code"] in argvs
     assert argvs.index(dnf[0]) < argvs.index(argvs[-1])                     # nodejs before npm
     assert sum(s.needs_admin for s in steps) == 1
@@ -112,3 +113,37 @@ def test_installed_asks_the_systems_own_package_manager(catalog):
     assert calls == [["pacman", "-Q", "ollama"], ["rpm", "-q", "ollama"]]
     assert sa.system_manager(which=lambda t: "/usr/bin/pacman" if t == "pacman" else None) == "pacman"
     assert sa.system_manager(which=lambda t: None) == "dnf"
+
+
+def test_progress_is_reported_per_step_with_percentages(catalog):
+    class P:
+        def __init__(self, argv, **kw):
+            self.argv = argv
+            self.stdout = iter(["Downloading  10%\n", "Installing 55 %\n", "Installing 100%\n"])
+
+        def wait(self):
+            return 0
+    events = []
+    steps = sa.plan(["steam", "spotify"], catalog, manager="pacman")
+    sa.run_plan(steps, on_line=lambda t: None, popen=P, on_step=lambda i, n, s, st, p: events.append((i, n, st, p)))
+    assert len(steps) == 3                                    # remote-add + one install per app
+    assert events[0] == (0, 3, "started", 0) and (2, 3, "done", 100) in events
+    assert [e[3] for e in events if e[0] == 1 and e[2] == "progress"] == [10, 55, 100]
+
+
+def test_install_blockers_are_said_before_starting():
+    errors, warnings = sa.blockers(cmdline="BOOT_IMAGE=/vmlinuz archisobasedir=halo quiet",
+                                   exists=lambda p: p == "/var/lib/pacman/db.lck")
+    assert errors and "busy" in errors[0]
+    assert warnings and "live session" in warnings[0]
+    assert sa.blockers(cmdline="root=UUID=x rw", exists=lambda p: False) == ([], [])
+
+
+def test_finish_refreshes_the_menu_and_lists_what_was_installed(catalog):
+    calls = []
+    title, body = sa.finish({"steam": True, "vscode": True, "discord": False}, catalog,
+                            run=lambda argv, **kw: calls.append(argv), which=lambda t: f"/usr/bin/{t}")
+    assert title == "Installed 2, 1 failed"
+    assert body.splitlines() == ["✓ Steam", "✓ Visual Studio Code", "✗ Discord"]
+    assert calls[0] == ["kbuildsycoca6"]                       # new apps show in the menu without logging out
+    assert calls[-1][:3] == ["notify-send", "--app-name=SAINT", "--icon=saint"] and calls[-1][-1] == body

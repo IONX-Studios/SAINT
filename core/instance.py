@@ -8,9 +8,10 @@ One SAINT per user. A second `saint` (the taskbar pin, the overlay hotkey, the s
     send("toggle-overlay")      -> True when a running SAINT took the command
     Server()                    -> in the running SAINT; .command(str) fires on the GUI thread
 
-Commands: show, toggle-overlay, quit, page:<Name>. Transport: QLocalServer (a Unix socket on Linux, a named
-pipe on Windows), readable by this user only. Anything else is refused, so nothing a caller sends
-reaches more than these four actions.
+Commands: show, toggle-overlay, quit, page:<Name>, ask:<request> (the SAINT widget's box).
+Transport: QLocalServer (a Unix socket on Linux, a named pipe on Windows), readable by this user
+only. Anything else is refused, so nothing a caller sends reaches more than these actions (a request
+is handled like one typed into SAINT).
 """
 
 import getpass
@@ -19,7 +20,7 @@ import re
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
-COMMANDS = re.compile(r"^(show|toggle-overlay|quit|page:[A-Za-z][A-Za-z0-9 _-]{0,31})$")
+COMMANDS = re.compile(r"^(show|toggle-overlay|quit|page:[A-Za-z][A-Za-z &_-]{0,31}|ask:[^\r\n]{1,500})$")
 
 
 def server_name() -> str:

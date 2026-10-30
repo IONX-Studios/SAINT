@@ -60,6 +60,11 @@ breeze-gtk
 kde-gtk-config
 xdg-desktop-portal-kde
 layer-shell-qt
+qt6-websockets
+
+# Phone link (KDE Connect: Android, and the iOS app) and remote desktop from a phone (Plasma's RDP server)
+kdeconnect
+krdp
 sddm
 sddm-kcm
 plymouth

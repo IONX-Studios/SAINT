@@ -5,3 +5,6 @@ ColorScheme=BreezeDark
 
 [KDE]
 LookAndFeelPackage=org.saintos.desktop
+
+[Sounds]
+Theme=saint

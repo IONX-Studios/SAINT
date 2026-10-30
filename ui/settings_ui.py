@@ -7,6 +7,7 @@ applies live (wake word reload, microphone restart, TTS re-init, log level,
 appearance) — no restart required for most settings.
 """
 
+import sys
 import os
 import threading
 from typing import Callable, List, Tuple
@@ -941,6 +942,9 @@ class SettingsUI(QWidget):
         self._row(f, "Font size", self._spin("appearance.font_size", 10, 20, 1, 0, " px"))
         self._row(f, "Density", self._check("appearance.compact", "Compact"))
         self._row(f, "Animations", self._check("appearance.animations", "Animate the orb, Halo and transitions"))
+        if sys.platform.startswith("linux"):
+            self._row(f, "Sounds", self._check("appearance.sounds", "Star chimes when the overlay opens and closes"),
+                      "Halo's system sounds and window animations are under Halo › Desktop & devices.")
         lay.addWidget(box)
 
         box, f = self._section("Window")

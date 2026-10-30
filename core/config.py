@@ -221,6 +221,7 @@ DEFAULT_CONFIG = {
         "font_size": 13,
         "compact": False,
         "animations": True,
+        "sounds": True,                   # Halo: star chimes when the overlay opens / closes (ui/sounds.py)
         "always_on_top": False,
         "sidebar_labels": True,
     },

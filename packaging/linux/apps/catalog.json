@@ -8,7 +8,8 @@
     "Web & Chat",
     "Media",
     "Creative",
-    "Office & Utilities"
+    "Office & Utilities",
+    "Look & feel"
   ],
   "apps": [
     {
@@ -320,6 +321,14 @@
       "method": "flatpak",
       "ref": "com.github.tchx84.Flatseal",
       "about": "Manage Flatpak app permissions"
+    },
+    {
+      "id": "apple-emoji",
+      "name": "Apple-style emoji",
+      "category": "Look & feel",
+      "method": "aur",
+      "ref": "ttf-apple-emoji",
+      "about": "Apple's emoji look instead of Noto (a community package of Apple's font, for your own use; Apple's licence doesn't allow sharing it, so Halo doesn't ship it)"
     }
   ]
 }

@@ -225,14 +225,15 @@ def run_selftest() -> Dict:
 # Window
 # --------------------------------------------------------------------------- #
 PAGES = ["Welcome", "Apps", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics",
-         "Desktop & devices", "Recovery", "Updates"]
+         "Desktop & devices", "Evolve", "Recovery", "Updates"]
 
 # Plasma's own settings pages (kcmshell6 <module>), the ones people change most.
 KCMS = [("Wi-Fi & network", "kcm_networkmanagement"), ("Bluetooth", "kcm_bluetooth"), ("Displays", "kcm_kscreen"),
         ("Sound", "kcm_pulseaudio"), ("Notifications", "kcm_notifications"), ("Power", "kcm_powerdevilprofilesconfig"),
         ("Keyboard shortcuts", "kcm_keys"), ("Users", "kcm_users"), ("Region & language", "kcm_regionandlang"),
         ("Colours & theme", "kcm_lookandfeel"), ("Window effects", "kcm_kwin_effects"), ("Virtual desktops", "kcm_kwin_virtualdesktops"),
-        ("Default apps", "kcm_componentchooser"), ("Date & time", "kcm_clock"), ("All settings", "")]
+        ("Default apps", "kcm_componentchooser"), ("Date & time", "kcm_clock"),
+        ("Phone (KDE Connect)", "kcm_kdeconnect"), ("Remote desktop", "kcm_krdpserver"), ("All settings", "")]
 
 
 def open_kcm(kcm: str) -> str:
@@ -666,6 +667,124 @@ def build_window(start_page: str = "Welcome"):
     v.addWidget(grid)
     v.addWidget(kmsg)
     v.addStretch(1)
+    stack.addWidget(w)
+
+    # ---------------- Evolve: change Halo with an AI agent (core/evolve.py)
+    from core import evolve
+    w, v = page("Evolve", "Describe a change to your desktop and let Claude (or another AI agent) build it. You see "
+                          "exactly what changes before anything is applied, and every change can be undone.")
+    ask_box = QLineEdit()
+    ask_box.setPlaceholderText("e.g. make window animations slower · a widget with my GPU temperature · "
+                               "pause Spotify when my headphones disconnect")
+    v.addWidget(ask_box)
+    erow = QHBoxLayout()
+    agent_pick = QComboBox()
+    agent_pick.addItems(list(evolve.agents()))
+    erow.addWidget(QLabel("Agent:"))
+    erow.addWidget(agent_pick)
+    build_btn = QPushButton("Build it")
+    erow.addWidget(build_btn)
+    erow.addStretch(1)
+    v.addLayout(erow)
+    elog = QPlainTextEdit()
+    elog.setReadOnly(True)
+    elog.setMaximumHeight(130)
+    v.addWidget(elog)
+    eview = QLabel("")
+    eview.setWordWrap(True)
+    v.addWidget(eview)
+    ediff = QPlainTextEdit()
+    ediff.setReadOnly(True)
+    ediff.hide()
+    v.addWidget(ediff, 1)
+    arow = QHBoxLayout()
+    apply_btn = QPushButton("Apply")
+    discard_btn = QPushButton("Discard")
+    for b_ in (apply_btn, discard_btn):
+        b_.setEnabled(False)
+        arow.addWidget(b_)
+    arow.addStretch(1)
+    v.addLayout(arow)
+    hist = QListWidget()
+    hist.setMaximumHeight(110)
+    v.addWidget(QLabel("Changes so far (select one to undo it):"))
+    v.addWidget(hist)
+    undo_btn = QPushButton("Undo the selected change")
+    v.addWidget(undo_btn, 0, Qt.AlignLeft)
+    estate = {"ws": None, "rv": None, "hist": []}
+
+    def fill_hist():
+        estate["hist"] = evolve.history()
+        hist.clear()
+        for hh in estate["hist"][:30]:
+            hist.addItem(f"{hh['id']}  [{hh['status']}]  {hh['request'][:90]}")
+
+    def built(code):
+        build_btn.setEnabled(True)
+        if isinstance(code, Exception):
+            eview.setText(f"Stopped: {code}")
+            return
+        rv = evolve.review(estate["ws"])
+        estate["rv"] = rv
+        parts = [rv.summary or "The agent finished."]
+        if rv.home:
+            parts.append("In your home folder: " + ", ".join(rv.home))
+        if rv.touches_system:
+            parts.append("System (asks for your password; snapshots before and after): "
+                         + ", ".join(rv.system + rv.packages))
+        if rv.refused:
+            parts.append("Refused (outside what Evolve may change): " + ", ".join(rv.refused))
+        parts.append("Takes effect: " + ("after a restart" if rv.restart else "right away"
+                                          + (f" ({', '.join(rv.live)})" if rv.live else "")))
+        eview.setText("\n".join(parts))
+        ediff.setPlainText(rv.diff)
+        ediff.show()
+        nothing = not (rv.home or rv.touches_system)
+        apply_btn.setEnabled(not nothing)
+        discard_btn.setEnabled(True)
+        if nothing:
+            eview.setText(eview.text() + "\nNothing to apply.")
+
+    def do_build():
+        try:
+            estate["ws"] = evolve.new_change(ask_box.text())
+        except ValueError as e:
+            eview.setText(str(e))
+            return
+        build_btn.setEnabled(False)
+        apply_btn.setEnabled(False)
+        elog.clear()
+        ediff.hide()
+        eview.setText(f"{agent_pick.currentText()} is working on it…")
+        in_background(lambda: evolve.run_agent(estate["ws"], agent_pick.currentText(),
+                                               on_line=lambda t: bridge.line.emit(elog.appendPlainText, t)), built)
+
+    def do_apply():
+        apply_btn.setEnabled(False)
+        in_background(lambda: evolve.apply(estate["ws"], estate["rv"]),
+                      lambda r: (eview.setText(("Applied: " + ", ".join(r)) if isinstance(r, list) else f"Didn't apply: {r}"),
+                                 fill_hist()))
+
+    def do_discard():
+        apply_btn.setEnabled(False)
+        discard_btn.setEnabled(False)
+        ediff.hide()
+        eview.setText("Discarded; nothing was changed.")
+
+    def do_undo():
+        row = hist.currentRow()
+        if row < 0 or estate["hist"][row]["status"] != "applied":
+            eview.setText("Select an applied change to undo.")
+            return
+        ws_ = Path(estate["hist"][row]["path"])
+        in_background(lambda: evolve.undo(ws_), lambda r: (eview.setText("Undone: " + (", ".join(r) if isinstance(r, list)
+                                                                                         else str(r))), fill_hist()))
+    build_btn.clicked.connect(do_build)
+    ask_box.returnPressed.connect(do_build)
+    apply_btn.clicked.connect(do_apply)
+    discard_btn.clicked.connect(do_discard)
+    undo_btn.clicked.connect(do_undo)
+    fill_hist()
     stack.addWidget(w)
 
     # ---------------- Recovery

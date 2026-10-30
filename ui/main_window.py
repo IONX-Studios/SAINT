@@ -382,6 +382,9 @@ class MainWindow(QMainWindow):
             self.toggle_overlay()
         elif cmd == "quit":
             self.quit()
+        elif cmd.startswith("ask:"):
+            self.show_normal()
+            self._ask(cmd[4:])
         elif cmd.startswith("page:"):
             name = cmd[5:]
             if name in self.halo_page.pages():           # "Recovery", "Updates", ...: the Halo page
@@ -397,13 +400,28 @@ class MainWindow(QMainWindow):
         return {**ui_bus.state, "level": ui_bus.level}
 
     def attach_dbus(self, bus):
-        """org.saintos.Saint (core/saint_dbus.py): the wallpaper, widgets and KWin script follow SAINT's state."""
+        """SAINT's live state for the rest of Halo: org.saintos.Saint on D-Bus (core/saint_dbus.py, the KWin
+        script) and ws://127.0.0.1:47811 (core/state_socket.py, the reactive wallpaper and the SAINT widget)."""
         self._dbus = bus
-        if not bus.active:
+        self._state_socket = None
+        if sys.platform.startswith("linux"):
+            from core.state_socket import StateSocket
+            self._state_socket = StateSocket(parent=self)
+        if not bus.active and not (self._state_socket and self._state_socket.listening):
             return
+        import time as _time
+        last = {"state": None, "level": 0.0, "t": 0.0}
+
         def publish(ev):
-            if ev.type in (EventType.ASSISTANT_STATE, EventType.VOICE_AUDIO_LEVEL):
-                bus.publish(str(ui_bus.state.get("state", "idle")), ui_bus.level)
+            if ev.type not in (EventType.ASSISTANT_STATE, EventType.VOICE_AUDIO_LEVEL):
+                return
+            state, level, now = str(ui_bus.state.get("state", "idle")), float(ui_bus.level), _time.monotonic()
+            if state == last["state"] and (abs(level - last["level"]) < 0.02 or now - last["t"] < 1 / 15):
+                return                                       # state changes always; the level at most 15 / s
+            last.update(state=state, level=level, t=now)
+            bus.publish(state, level)
+            if self._state_socket:
+                self._state_socket.publish(state, level)
         ui_bus.event.connect(publish)
         publish(type("E", (), {"type": EventType.ASSISTANT_STATE})())
 

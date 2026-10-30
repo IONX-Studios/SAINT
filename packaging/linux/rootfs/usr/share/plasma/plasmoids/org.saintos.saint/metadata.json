@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Category": "Utilities",
+        "Description": "SAINT on your desktop: what it's doing, a box to ask it anything, and a button to talk",
+        "Icon": "saint",
+        "Id": "org.saintos.saint",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINT",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

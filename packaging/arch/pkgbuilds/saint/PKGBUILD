@@ -9,7 +9,7 @@ pkgdesc="SAINT, Halo's local voice-first desktop assistant"
 arch=(x86_64)
 url="https://github.com/IONX-Studios/SAINT"
 license=(LicenseRef-SAINT)
-depends=(portaudio espeak-ng libxkbcommon xcb-util-cursor qt6-tools wl-clipboard playerctl libnotify
+depends=(portaudio espeak-ng libxkbcommon xcb-util-cursor qt6-tools qt6-websockets wl-clipboard playerctl libnotify
          xdg-utils tesseract tesseract-data-eng pciutils)
 makedepends=(uv)
 options=(!strip !debug !lto)
@@ -107,8 +107,16 @@ PY
   # on Wayland and opens SAINT from the top screen edge.
   install -Dm0644 -t "$pkgdir/usr/share/kglobalaccel" "$fs/usr/share/kglobalaccel/saint-overlay.desktop"
   cp -a "$fs/usr/share/kwin" "$pkgdir/usr/share/kwin"
+  # The SAINT wallpaper that reacts to SAINT's voice (follows ws://127.0.0.1:47811, core/state_socket.py).
+  install -d "$pkgdir/usr/share/plasma/wallpapers"
+  cp -a "$fs/usr/share/plasma/wallpapers/org.saintos.wallpaper" "$pkgdir/usr/share/plasma/wallpapers/"
+  # The SAINT desktop widget.
+  install -d "$pkgdir/usr/share/plasma/plasmoids"
+  cp -a "$fs/usr/share/plasma/plasmoids/org.saintos.saint" "$pkgdir/usr/share/plasma/plasmoids/"
   install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kwinrc" <<'EOF'
 [Plugins]
 saint-shellEnabled=true
+saint-starEnabled=true
+scaleEnabled=false
 EOF
 }

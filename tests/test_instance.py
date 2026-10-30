@@ -57,3 +57,9 @@ def test_round_trip_to_the_running_saint(app, monkeypatch):
 def test_nobody_running_means_start_normally(app, monkeypatch):
     monkeypatch.setattr(instance, "server_name", lambda: "saint-test-nobody-here")
     assert instance.send("show", timeout_ms=300) is False
+
+
+def test_ask_carries_one_line_of_text():
+    assert instance.COMMANDS.match("ask:what's the weather tomorrow?")
+    for bad in ("ask:", "ask:two\nlines", "ask:" + "x" * 501):
+        assert not instance.COMMANDS.match(bad), bad

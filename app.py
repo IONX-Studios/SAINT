@@ -107,6 +107,7 @@ def main():
                         help="open or close the overlay (the overlay hotkey runs this); starts SAINT if needed")
     parser.add_argument("--page", default="", metavar="NAME", help="open SAINT on a page, e.g. Settings")
     parser.add_argument("--quit", action="store_true", help="quit the running SAINT")
+    parser.add_argument("--ask", default="", metavar="REQUEST", help="ask SAINT something (the SAINT widget uses this)")
     args = parser.parse_args()
     if args.selftest is not None:
         from core import selftest
@@ -130,8 +131,9 @@ def main():
     app.setDesktopFileName("saint")
     app.setQuitOnLastWindowClosed(False)   # the tray keeps SAINT alive
 
+    ask = " ".join(args.ask.split())[:500]
     command = ("quit" if args.quit else "toggle-overlay" if args.toggle_overlay
-               else f"page:{args.page}" if args.page else "show")
+               else f"ask:{ask}" if ask else f"page:{args.page}" if args.page else "show")
 
     # One SAINT at a time, whichever data it uses: two would both answer the microphone.
     from core import instance
@@ -176,6 +178,8 @@ def main():
     window.attach_dbus(SaintBus(window.handle_command, lambda: dict(window.current_state())))
     if args.toggle_overlay:
         QTimer.singleShot(0, window.open_overlay)
+    elif ask:
+        QTimer.singleShot(1500, lambda: window.handle_command(f"ask:{ask}"))
     elif args.page:
         window.handle_command(f"page:{args.page}")
     elif not (args.background or config.get("notifications.start_minimized", False)):

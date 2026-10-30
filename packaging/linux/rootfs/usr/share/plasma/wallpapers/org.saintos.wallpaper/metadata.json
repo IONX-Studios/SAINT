@@ -1,0 +1,12 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Description": "The SAINT wallpaper: the Halo ring wakes up when SAINT listens, thinks and speaks",
+        "Id": "org.saintos.wallpaper",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINT (reacts to your voice)",
+        "Version": "1.0"
+    },
+    "X-Plasma-MainScript": "ui/main.qml"
+}

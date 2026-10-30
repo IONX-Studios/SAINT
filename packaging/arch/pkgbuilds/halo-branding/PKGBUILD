@@ -23,6 +23,7 @@ build() {
   # SAINT's own artwork, as on SAINTOS: the SAINT mark in the orange Halo ring, SAINT orange on near-black,
   # and SAINT as the wordmark on the wallpaper and boot splash. Only the OS name (os-release) is Halo.
   python src/packaging/linux/branding/make_branding.py art --name SAINT --subtitle "Halo  ·  Arch Linux  ·  KDE Plasma"
+  python src/packaging/linux/branding/make_sounds.py sounds
 }
 
 package() {
@@ -81,6 +82,10 @@ EOF
          -e 's/^BackgroundEndColor=.*/BackgroundEndColor=0x0a0b0d/' "$theme/halo.plymouth"
   grep -qx 'ImageDir=/usr/share/plymouth/themes/halo' "$theme/halo.plymouth"
   install -m0644 art/plymouth/watermark.png "$theme/watermark.png"
+
+  # SAINT's sound theme (kdeglobals [Sounds] Theme=saint).
+  install -d "$pkgdir/usr/share/sounds"
+  cp -a sounds/saint "$pkgdir/usr/share/sounds/saint"
 
   # Plasma: colours, splash, lock screen, look-and-feel, first-login defaults.
   install -Dm0644 -t "$pkgdir/etc/xdg" "$fs"/etc/xdg/{kdeglobals,kscreenlockerrc,ksplashrc}

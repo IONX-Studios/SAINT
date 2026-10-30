@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButto
 
 from core.config import config
 from core.events import EventType
-from ui import actions, icons, motion, placement
+from ui import actions, icons, motion, placement, sounds
 from ui.pages.music import NowPlaying
 from ui.reactive import ui_bus
 from ui.theme import current_palette, state_color, state_word
@@ -457,6 +457,7 @@ class Overlay(QWidget):
             self.close_overlay()
 
     def open_overlay(self):
+        sounds.play("saint-star-open")
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         geo = screen.geometry()
         self._bg = frost(screen.grabWindow(0), geo.size())
@@ -483,6 +484,7 @@ class Overlay(QWidget):
         if not self.isVisible() or self._closing:
             return
         self._closing = True
+        sounds.play("saint-star-close")
         self._clock.stop()
 
         def done():

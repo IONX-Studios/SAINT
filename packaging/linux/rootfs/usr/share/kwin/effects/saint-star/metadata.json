@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "KWin/Effect",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Category": "Appearance",
+        "Description": "Windows open in a bright burst that turns into place and close by spinning down to a point; windows on a new virtual desktop glow in",
+        "EnabledByDefault": true,
+        "Id": "saint-star",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINT star",
+        "Version": "1.0"
+    },
+    "X-KWin-Exclusive-Category": "toplevel-open-close-animation",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

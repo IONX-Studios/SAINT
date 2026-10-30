@@ -11,9 +11,15 @@ var favorites = ["saint.desktop", "firefox.desktop", "org.kde.dolphin.desktop", 
 var all = desktops();
 for (var i = 0; i < all.length; i++) {
     var d = all[i];
-    d.wallpaperPlugin = "org.kde.image";
+    // The SAINT wallpaper that reacts to SAINT's voice (still artwork when SAINT isn't running); the plain
+    // image is set too, so choosing "Image" in Plasma's wallpaper settings shows the same artwork.
     d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
     d.writeConfig("Image", wallpaper);
+    d.wallpaperPlugin = "org.saintos.wallpaper";
+    if (i === 0) {                                     // the SAINT widget, top right of the first screen
+        var g = screenGeometry(d.screen);
+        d.addWidget("org.saintos.saint", g.width - 380, 48, 340, 130);
+    }
 }
 
 var ps = panels();

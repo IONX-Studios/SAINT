@@ -1,0 +1,20 @@
+# Calamares configuration for installing Halo from the live ISO: Btrfs with snapshot-ready subvolumes,
+# GRUB with os-prober (dual boot), and a cleanup step that turns the live image into a normal system.
+pkgname=halo-calamares-config
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Halo installer configuration for Calamares"
+arch=(any)
+url="https://github.com/IONX-Studios/SAINT"
+license=(LicenseRef-SAINT)
+depends=(calamares halo-branding)
+source=(calamares.tar halo-cleanup install-halo.desktop)
+noextract=(calamares.tar)
+sha256sums=(SKIP SKIP SKIP)
+
+package() {
+  install -d "$pkgdir/etc/calamares"
+  tar -xf "$srcdir/calamares.tar" -C "$pkgdir/etc/calamares"
+  install -Dm0755 "$srcdir/halo-cleanup" "$pkgdir/usr/lib/halo/calamares-cleanup"
+  install -Dm0644 "$srcdir/install-halo.desktop" "$pkgdir/usr/share/applications/install-halo.desktop"
+}

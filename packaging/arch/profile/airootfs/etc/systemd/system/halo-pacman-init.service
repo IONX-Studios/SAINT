@@ -1,0 +1,15 @@
+# Live session only: a pacman keyring, so pacman, paru and SAINT's app installer work in the live
+# session (the image ships without one; the installer creates the installed system's own).
+[Unit]
+Description=Halo live pacman keyring
+ConditionKernelCommandLine=archisobasedir
+After=time-sync.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/pacman-key --init
+ExecStart=/usr/bin/pacman-key --populate
+
+[Install]
+WantedBy=multi-user.target

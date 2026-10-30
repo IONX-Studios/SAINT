@@ -1,0 +1,12 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/os-release
+Target = etc/plymouth/plymouthd.conf
+Target = usr/lib/halo/os-release
+
+[Action]
+Description = Applying Halo branding (os-release, boot splash)...
+When = PostTransaction
+Exec = /usr/lib/halo/apply-branding

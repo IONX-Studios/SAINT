@@ -1,0 +1,15 @@
+# Live session only: creates the passwordless live user, logs it straight into Plasma and puts
+# "Install Halo" on its desktop. Everything it writes goes to the live overlay (RAM), and the
+# condition keeps it a no-op on an installed system even if the unit were left enabled.
+[Unit]
+Description=Halo live session setup
+ConditionKernelCommandLine=archisobasedir
+Before=display-manager.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/halo/live-setup
+
+[Install]
+WantedBy=multi-user.target

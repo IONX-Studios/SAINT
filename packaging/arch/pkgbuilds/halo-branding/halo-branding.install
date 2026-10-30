@@ -1,0 +1,7 @@
+post_install() {
+  /usr/lib/halo/apply-branding
+}
+
+post_upgrade() {
+  /usr/lib/halo/apply-branding
+}

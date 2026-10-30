@@ -1,0 +1,35 @@
+---
+componentName: halo
+
+welcomeStyleCalamares: false
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 1024px,640px
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         "Halo"
+    shortProductName:    "Halo"
+    version:             ""
+    shortVersion:        ""
+    versionedName:       "Halo"
+    shortVersionedName:  "Halo"
+    bootloaderEntryName: "Halo"
+    productUrl:          "https://github.com/IONX-Studios/SAINT"
+    supportUrl:          "https://github.com/IONX-Studios/SAINT/issues"
+
+images:
+    productLogo:    "/usr/share/icons/hicolor/256x256/apps/halo.png"
+    productIcon:    "/usr/share/icons/hicolor/128x128/apps/halo.png"
+    productWelcome: "/usr/share/wallpapers/SAINTOS/contents/images/1366x768.png"
+
+slideshow: "show.qml"
+slideshowAPI: 2
+
+style:
+    SidebarBackground:        "#0a0b0d"
+    SidebarText:              "#eceef2"
+    SidebarTextCurrent:       "#0a0b0d"
+    SidebarBackgroundCurrent: "#feaa34"

@@ -1,0 +1,100 @@
+# Halo's identity: os-release, logo, wallpapers, boot splash, Plasma look-and-feel and login screen.
+# Artwork is generated from code at build time (packaging/linux/branding/make_branding.py).
+pkgname=halo-branding
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Halo branding: os-release, artwork, boot splash and KDE Plasma defaults"
+arch=(any)
+url="https://github.com/IONX-Studios/SAINT"
+license=(LicenseRef-SAINT)
+depends=(plymouth)
+makedepends=(python-pillow ttf-dejavu plymouth)
+install=halo-branding.install
+source=(saint-src.tar apply-branding halo-branding.hook)
+noextract=(saint-src.tar)
+sha256sums=(SKIP SKIP SKIP)
+
+prepare() {
+  rm -rf src && mkdir src
+  tar -xf saint-src.tar -C src
+}
+
+build() {
+  python src/packaging/linux/branding/make_branding.py art --name Halo --subtitle "Arch Linux  ·  KDE Plasma"
+}
+
+package() {
+  local fs="$srcdir/src/packaging/linux/rootfs" n f size
+
+  # os-release: Arch's filesystem package owns /usr/lib/os-release; apply-branding (pacman hook and
+  # install script) writes this one to /etc/os-release, which takes precedence.
+  install -Dm0644 /dev/stdin "$pkgdir/usr/lib/halo/os-release" <<EOF
+NAME="Halo"
+PRETTY_NAME="Halo $pkgver"
+ID=halo
+ID_LIKE=arch
+BUILD_ID=rolling
+VERSION_ID=$pkgver
+HALO_VERSION=$pkgver
+ANSI_COLOR="38;2;254;170;52"
+LOGO=halo
+HOME_URL="https://github.com/IONX-Studios/SAINT"
+BUG_REPORT_URL="https://github.com/IONX-Studios/SAINT/issues"
+EOF
+  install -Dm0755 "$srcdir/apply-branding" "$pkgdir/usr/lib/halo/apply-branding"
+  install -Dm0644 "$srcdir/halo-branding.hook" "$pkgdir/usr/share/libalpm/hooks/90-halo-branding.hook"
+
+  # Logo under both names (SAINTOS-era desktop files and Plasma defaults say "saintos").
+  for n in 16 32 48 64 128 256 512; do
+    install -Dm0644 "art/logo/saintos-logo-$n.png" "$pkgdir/usr/share/icons/hicolor/${n}x${n}/apps/halo.png"
+    install -Dm0644 "art/logo/saintos-logo-$n.png" "$pkgdir/usr/share/icons/hicolor/${n}x${n}/apps/saintos.png"
+  done
+  install -Dm0644 art/logo/saintos-logo-256.png "$pkgdir/usr/share/pixmaps/halo.png"
+
+  # Wallpaper (Plasma package layout; the folder name stays SAINTOS, Plasma shows the Name).
+  install -Dm0644 /dev/stdin "$pkgdir/usr/share/wallpapers/SAINTOS/metadata.json" <<'EOF'
+{
+    "KPlugin": {
+        "Authors": [{ "Name": "Halo" }],
+        "Id": "SAINTOS",
+        "License": "CC-BY-SA-4.0",
+        "Name": "Halo"
+    }
+}
+EOF
+  for f in art/wallpaper/SAINTOS-*.png; do
+    size=$(basename "$f" .png); size=${size#SAINTOS-}
+    install -Dm0644 "$f" "$pkgdir/usr/share/wallpapers/SAINTOS/contents/images/$size.png"
+  done
+  install -Dm0644 art/wallpaper/SAINTOS-1920x1080.png "$pkgdir/usr/share/wallpapers/SAINTOS/contents/screenshot.png"
+
+  # Plymouth: Arch's spinner theme with Halo's colours and wordmark.
+  local theme="$pkgdir/usr/share/plymouth/themes/halo"
+  install -d "$theme"
+  cp -a /usr/share/plymouth/themes/spinner/. "$theme/"
+  mv "$theme/spinner.plymouth" "$theme/halo.plymouth"
+  sed -i -e 's/^Name=.*/Name=Halo/' -e 's/^Description=.*/Description=Halo boot splash/' \
+         -e 's#^ImageDir=.*#ImageDir=/usr/share/plymouth/themes/halo#' \
+         -e 's/^BackgroundStartColor=.*/BackgroundStartColor=0x0a0b0d/' \
+         -e 's/^BackgroundEndColor=.*/BackgroundEndColor=0x0a0b0d/' "$theme/halo.plymouth"
+  grep -qx 'ImageDir=/usr/share/plymouth/themes/halo' "$theme/halo.plymouth"
+  install -m0644 art/plymouth/watermark.png "$theme/watermark.png"
+
+  # Plasma: colours, splash, lock screen, look-and-feel, first-login defaults.
+  install -Dm0644 -t "$pkgdir/etc/xdg" "$fs"/etc/xdg/{kdeglobals,kscreenlockerrc,ksplashrc}
+  cp -a "$fs/usr/share/plasma" "$pkgdir/usr/share/plasma"
+  sed -i -e 's/"Name": "SAINTOS"/"Name": "Halo"/' -e 's/"Description": "SAINTOS:/"Description": "Halo:/' \
+      -e 's/{ "Name": "SAINTOS" }/{ "Name": "Halo" }/' \
+      "$pkgdir/usr/share/plasma/look-and-feel/org.saintos.desktop/metadata.json"
+
+  # Login screen: SDDM's Breeze theme with the Halo wallpaper.
+  install -Dm0644 /dev/stdin "$pkgdir/etc/sddm.conf.d/10-halo.conf" <<'EOF'
+[Theme]
+Current=breeze
+EOF
+  install -Dm0644 /dev/stdin "$pkgdir/usr/share/sddm/themes/breeze/theme.conf.user" <<'EOF'
+[General]
+background=/usr/share/wallpapers/SAINTOS/contents/images/1920x1080.png
+type=image
+EOF
+}

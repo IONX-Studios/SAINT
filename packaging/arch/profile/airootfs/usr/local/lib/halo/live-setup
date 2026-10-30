@@ -1,0 +1,40 @@
+#!/usr/bin/bash
+# Live session setup, run once per boot by halo-live.service (only when booted from the ISO).
+# Writes only to the live overlay in RAM; none of this exists in the image, so the installer never
+# copies a passwordless user, autologin or NOPASSWD sudo onto a real disk.
+set -euo pipefail
+U=liveuser
+
+id "$U" &>/dev/null || useradd -m -G wheel,audio,video,input,network,storage -s /bin/bash -c "Halo Live" "$U"
+passwd -d "$U" >/dev/null
+
+install -d -m 0750 /etc/sudoers.d
+printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$U" > /etc/sudoers.d/10-halo-live
+chmod 0440 /etc/sudoers.d/10-halo-live
+
+# Straight into Plasma (Wayland). zz- sorts last, so it wins over any other SDDM drop-in.
+install -d /etc/sddm.conf.d
+cat > /etc/sddm.conf.d/zz-halo-live.conf <<EOF
+[Autologin]
+User=$U
+Session=plasma
+Relogin=false
+EOF
+
+# No password prompts for the live user (installer, app installs, SAINT's admin actions).
+install -d -m 0755 /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/49-halo-live.rules <<EOF
+polkit.addRule(function (action, subject) {
+    if (subject.user == "$U") { return polkit.Result.YES; }
+});
+EOF
+
+# Arch's mirrorlist ships with every server commented out; give the live session one that works.
+grep -q '^Server' /etc/pacman.d/mirrorlist 2>/dev/null \
+  || echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> /etc/pacman.d/mirrorlist
+
+# "Install Halo" on the desktop (Plasma runs desktop launchers that are executable).
+if [ -f /usr/share/applications/install-halo.desktop ]; then
+  install -d -o "$U" -g "$U" "/home/$U/Desktop"
+  install -m 0755 -o "$U" -g "$U" /usr/share/applications/install-halo.desktop "/home/$U/Desktop/install-halo.desktop"
+fi

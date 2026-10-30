@@ -1,0 +1,73 @@
+# Halo live/installer image: Arch base + KDE Plasma 6 + SAINT. One package per line.
+
+# Base system and live boot
+base
+linux
+linux-firmware
+sof-firmware
+amd-ucode
+intel-ucode
+mkinitcpio
+mkinitcpio-archiso
+syslinux
+sudo
+nano
+man-db
+zram-generator
+power-profiles-daemon
+
+# Disks and file systems (the installer and dual boot)
+btrfs-progs
+dosfstools
+e2fsprogs
+exfatprogs
+ntfs-3g
+xfsprogs
+rsync
+
+# Boot loader for installed systems (Calamares) and dual boot detection
+grub
+efibootmgr
+os-prober
+
+# Desktop: KDE Plasma 6 on Wayland
+plasma-meta
+sddm
+konsole
+dolphin
+kate
+ark
+spectacle
+gwenview
+okular
+firefox
+xdg-user-dirs
+noto-fonts
+noto-fonts-emoji
+plymouth
+
+# Audio, network, Bluetooth
+pipewire
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+wireplumber
+networkmanager
+bluez
+bluez-utils
+
+# Apps and AUR
+base-devel
+git
+flatpak
+ollama
+paru-bin
+
+# VirtualBox guest support (screen resize, clipboard) for VM testing; inert on real hardware
+virtualbox-guest-utils
+
+# Halo ([halo] repo, built by build_iso.sh)
+saint
+halo-branding
+calamares
+halo-calamares-config

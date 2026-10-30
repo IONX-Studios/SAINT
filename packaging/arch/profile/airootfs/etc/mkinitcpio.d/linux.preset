@@ -1,0 +1,7 @@
+# Live ISO preset for the 'linux' package (replaced with Arch's default preset by the installer).
+PRESETS=('archiso')
+
+ALL_kver='/boot/vmlinuz-linux'
+archiso_config='/etc/mkinitcpio.conf.d/halo-live.conf'
+
+archiso_image="/boot/initramfs-linux.img"

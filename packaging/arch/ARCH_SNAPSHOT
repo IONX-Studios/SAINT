@@ -1,0 +1,4 @@
+# The Arch Linux Archive snapshot a Halo ISO is built from (https://archive.archlinux.org/repos/).
+# Same date -> same package versions, so a build can be repeated. Move it forward for a new release
+# once the VM boot and install tests pass on the newer packages.
+snapshot=2026/10/28

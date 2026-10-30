@@ -1,0 +1,99 @@
+# SAINT for Halo: the app in /opt/saint/app with its own Python 3.12 (python-build-standalone via uv)
+# and venv, so SAINT keeps the Python and package set its tests run on, whatever Arch's python is.
+# Built by packaging/arch/build_iso.sh, which stages saint-src.tar (git archive of the built commit)
+# and sets pkgver from packaging/arch/VERSION.
+pkgname=saint
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="SAINT, Halo's local voice-first desktop assistant"
+arch=(x86_64)
+url="https://github.com/IONX-Studios/SAINT"
+license=(LicenseRef-SAINT)
+depends=(portaudio espeak-ng libxkbcommon xcb-util-cursor qt6-tools wl-clipboard playerctl libnotify
+         xdg-utils tesseract tesseract-data-eng pciutils)
+makedepends=(uv)
+options=(!strip !debug !lto)
+_spacy_model=en_core_web_sm-3.8.0-py3-none-any.whl
+source=(saint-src.tar
+        saint-runtime.lock
+        "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/$_spacy_model")
+noextract=(saint-src.tar "$_spacy_model")
+sha256sums=(SKIP
+            SKIP
+            1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85)
+
+_python() {   # the uv-managed CPython 3.12 in $srcdir (installed by build())
+  export UV_PYTHON_INSTALL_DIR="$srcdir/python-dist" UV_CACHE_DIR="$srcdir/uv-cache" UV_PYTHON_PREFERENCE=only-managed
+  readlink -f "$(uv python find 3.12)"
+}
+
+prepare() {
+  rm -rf app && mkdir app
+  tar -xf saint-src.tar -C app
+}
+
+build() {
+  export UV_PYTHON_INSTALL_DIR="$srcdir/python-dist" UV_CACHE_DIR="$srcdir/uv-cache"
+  uv python install 3.12
+  "$(_python)" --version
+}
+
+package() {
+  local root="$pkgdir/opt/saint" py home
+  py="$(_python)"
+  home="$(dirname "$(dirname "$py")")"
+  install -d "$root"
+  cp -a "$home" "$root/python"
+  rm -f "$root/python/lib/python3.12/EXTERNALLY-MANAGED"
+
+  # The venv, installed exactly from the lock (no resolution; en_core_web_sm from the pinned wheel).
+  "$root/python/bin/python3.12" -m venv --without-pip "$root/venv"
+  uv pip install --python "$root/venv/bin/python" --no-deps --find-links "$srcdir" -r "$srcdir/saint-runtime.lock"
+  cp -a "$srcdir/app" "$root/app"
+
+  # The package fails here, not on someone's desktop, if SAINT's runtime doesn't import.
+  (cd "$root/app" && QT_QPA_PLATFORM=offscreen "$root/venv/bin/python" - <<'PY'
+import importlib, sys
+mods = ["PySide6.QtWidgets", "PySide6.QtSvg", "numpy", "requests", "psutil", "sounddevice", "soundfile",
+        "onnxruntime", "faster_whisper", "kokoro_onnx", "misaki.en", "en_core_web_sm", "keyring", "secretstorage",
+        "jeepney", "segno", "zeroconf", "cryptography", "PIL", "core.paths", "core.platform_caps", "core.saintos_apps",
+        "modules.desktop.linux.kwin", "ui.saintos_center"]
+bad = []
+for m in mods:
+    try:
+        importlib.import_module(m)
+    except Exception as e:
+        bad.append(f"{m}: {type(e).__name__}: {e}")
+if bad:
+    sys.exit("SAINT runtime imports failed:\n  " + "\n  ".join(bad))
+print("SAINT runtime imports OK")
+PY
+  )
+
+  # Byte-compile once (/opt is read-only at run time); recorded paths are the installed ones.
+  "$root/venv/bin/python" -m compileall -q -j0 -s "$pkgdir" -p / \
+    "$root/app" "$root/venv/lib/python3.12/site-packages" >/dev/null || true
+
+  # Relocate: the venv was made in $pkgdir; point it at /opt/saint/python.
+  local f
+  for f in python python3 python3.12; do
+    ln -sfn /opt/saint/python/bin/python3.12 "$root/venv/bin/$f"
+  done
+  sed -i "s#$pkgdir##g" "$root/venv/pyvenv.cfg"
+  grep -rlI --null "$pkgdir" "$root/venv/bin" | xargs -0 -r sed -i "s#$pkgdir##g"
+  if grep -rqI "$pkgdir" "$root/venv/bin" "$root/venv/pyvenv.cfg"; then
+    echo "the venv still points into \$pkgdir" >&2
+    return 1
+  fi
+
+  # Launchers, menu entries, services (shared with the Fedora image: packaging/linux/rootfs).
+  local fs="$srcdir/app/packaging/linux/rootfs"
+  install -Dm0755 -t "$pkgdir/usr/bin" "$fs"/usr/bin/{saint,saintos-control,saintos-apps,saintos-diagnose}
+  install -Dm0644 -t "$pkgdir/usr/share/applications" "$fs"/usr/share/applications/*.desktop
+  install -Dm0644 -t "$pkgdir/usr/lib/systemd/user" "$fs/usr/lib/systemd/user/saint.service"
+  install -Dm0644 -t "$pkgdir/usr/lib/systemd/system" "$fs/usr/lib/systemd/system/saintos-boot-report.service"
+  install -Dm0755 -t "$pkgdir/usr/libexec/saintos" "$fs"/usr/libexec/saintos/{boot-report,firstrun}
+  install -Dm0644 -t "$pkgdir/etc/xdg/autostart" "$fs/etc/xdg/autostart/saintos-firstrun.desktop"
+  install -Dm0644 "$srcdir/app/packaging/linux/apps/catalog.json" "$pkgdir/usr/share/saintos/apps.json"
+  install -Dm0644 "$srcdir/app/SAINT.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/saint.png"
+}

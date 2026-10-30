@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# Applies the parts of Halo's branding that live in files other packages own:
+#   /etc/os-release   (Arch's filesystem package makes it a link to /usr/lib/os-release)
+#   Plymouth theme    (/etc/plymouth/plymouthd.conf belongs to plymouth)
+# Run by halo-branding's install script and by its pacman hook after filesystem/plymouth upgrades.
+set -u
+if ! cmp -s /usr/lib/halo/os-release /etc/os-release; then
+  rm -f /etc/os-release
+  install -m0644 /usr/lib/halo/os-release /etc/os-release
+fi
+if command -v plymouth-set-default-theme >/dev/null && [ "$(plymouth-set-default-theme 2>/dev/null)" != halo ]; then
+  plymouth-set-default-theme halo
+fi
+exit 0

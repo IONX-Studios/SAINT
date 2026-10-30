@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install Halo
+GenericName=System Installer
+Comment=Install Halo on this computer, alone or next to Windows
+Exec=sudo -E /usr/bin/calamares
+Icon=halo
+Terminal=false
+Categories=System;
+Keywords=install;installer;calamares;halo;

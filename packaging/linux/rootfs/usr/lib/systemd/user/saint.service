@@ -1,5 +1,7 @@
-# SAINT as a per-user service in the Plasma session (no root). Off by default:
-# turn it on in the SAINTOS Control Center, or: systemctl --user enable --now saint
+# SAINT as a per-user service in the Plasma session (no root). On Halo it's on by default and starts
+# lazily: in the background, 15 s after the desktop is up and at a lower priority, so it never slows
+# down login; its voice models download in the background the first time. Turn it off in SAINT's
+# Halo page (Service), or: systemctl --user disable --now saint
 [Unit]
 Description=SAINT assistant
 Documentation=file:///opt/saint/app/docs/GUIDE.md
@@ -10,9 +12,11 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
+ExecStartPre=/usr/bin/sleep 15
 ExecStart=/usr/bin/saint --background
 Restart=on-failure
 RestartSec=5
+Nice=5
 NoNewPrivileges=true
 
 [Install]

@@ -141,6 +141,8 @@ def main():
     lock = QLockFile(str(base_data_dir() / "saint.lock"))
     lock.setStaleLockTime(0)
     if not lock.tryLock(100):
+        if args.background and command == "show":
+            return 0                        # started at login while SAINT already runs: nothing to do
         if instance.send(command):          # the running SAINT shows itself / its overlay / the page
             return 0
         if args.quit:

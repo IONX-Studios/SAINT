@@ -224,6 +224,9 @@ ln -sf /usr/lib/systemd/system/vboxservice.service "$S/multi-user.target.wants/v
 ln -sf /etc/systemd/system/halo-live.service "$S/multi-user.target.wants/halo-live.service"
 ln -sf /etc/systemd/system/halo-pacman-init.service "$S/multi-user.target.wants/halo-pacman-init.service"
 ln -sf /usr/lib/systemd/system/saintos-boot-report.service "$S/graphical.target.wants/saintos-boot-report.service"
+# SAINT itself: a user service for every user, started lazily after the desktop (saint.service).
+mkdir -p "$A/etc/systemd/user/graphical-session.target.wants"
+ln -sf /usr/lib/systemd/user/saint.service "$A/etc/systemd/user/graphical-session.target.wants/saint.service"
 # SAINT's local AI: Ollama always on (idle it uses almost nothing), its small model pulled once in the
 # background on an installed system (not in the live session).
 ln -sf /usr/lib/systemd/system/ollama.service "$S/multi-user.target.wants/ollama.service"

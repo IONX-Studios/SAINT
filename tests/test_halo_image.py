@@ -192,3 +192,12 @@ def test_control_center_names_and_updates_halo(tmp_path, monkeypatch):
     rel.write_text('NAME="SAINTOS"\nID=fedora\n', encoding="utf-8")
     assert not sc.is_halo() and sc.product() == "SAINTOS"
     assert "dnf upgrade" in sc.update_command()[-1]
+
+
+def test_no_two_halo_packages_install_the_same_files():
+    """pacman refuses an image where two packages own one file (build 4 failed that way)."""
+    branding = (ARCH / "pkgbuilds" / "halo-branding" / "PKGBUILD").read_text(encoding="utf-8")
+    saint = (ARCH / "pkgbuilds" / "saint" / "PKGBUILD").read_text(encoding="utf-8")
+    assert 'cp -a "$fs/usr/share/plasma" ' not in branding
+    for owned_by_saint in ("plasmoids/org.saintos.saint", "wallpapers/org.saintos.wallpaper", "usr/share/kwin"):
+        assert owned_by_saint in saint and owned_by_saint not in branding

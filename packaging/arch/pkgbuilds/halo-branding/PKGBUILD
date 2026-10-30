@@ -89,7 +89,9 @@ EOF
 
   # Plasma: colours, splash, lock screen, look-and-feel, first-login defaults.
   install -Dm0644 -t "$pkgdir/etc/xdg" "$fs"/etc/xdg/{kdeglobals,kscreenlockerrc,ksplashrc}
-  cp -a "$fs/usr/share/plasma" "$pkgdir/usr/share/plasma"
+  # Only the look-and-feel and the desktop defaults: the SAINT wallpaper and widget are the saint package's.
+  install -d "$pkgdir/usr/share/plasma"
+  cp -a "$fs/usr/share/plasma/look-and-feel" "$fs/usr/share/plasma/shells" "$pkgdir/usr/share/plasma/"
   sed -i -e 's/"Name": "SAINTOS"/"Name": "Halo"/' -e 's/"Description": "SAINTOS:/"Description": "Halo:/' \
       -e 's/{ "Name": "SAINTOS" }/{ "Name": "Halo" }/' \
       "$pkgdir/usr/share/plasma/look-and-feel/org.saintos.desktop/metadata.json"

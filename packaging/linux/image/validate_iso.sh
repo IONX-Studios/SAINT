@@ -28,7 +28,7 @@ grep -qi 'El Torito.*UEFI\|platform_id.*0xef\|boot img :.*UEFI' <<<"$info" && pa
   || fail "no UEFI El Torito boot image"
 
 $SUDO mount -o loop,ro "$ISO" "$MNT" || { fail "mount ISO"; exit 1; }
-check "EFI/BOOT/BOOTX64.EFI" test -s "$MNT/EFI/BOOT/BOOTX64.EFI"
+check "EFI/BOOT/BOOTX64.EFI" $SUDO test -s "$MNT/EFI/BOOT/BOOTX64.EFI"
 # Secure Boot (on by default on most PCs): the first-stage loader must be shim signed by Microsoft's UEFI CA.
 $SUDO grep -aq "UEFI SHIM" "$MNT/EFI/BOOT/BOOTX64.EFI" && $SUDO grep -aqE "Microsoft Corporation UEFI CA 20(11|23)" "$MNT/EFI/BOOT/BOOTX64.EFI" \
   && pass "Secure Boot: BOOTX64.EFI is shim signed by the Microsoft UEFI CA" \
@@ -44,6 +44,12 @@ if [ -n "$GRUB" ]; then
   grep -q 'rd.live.image' "$GRUB" && pass "grub: live boot options" || fail "grub: rd.live.image missing"
   grep -q "root=live:CDLABEL=$volid" "$GRUB" && pass "grub: root=live:CDLABEL=$volid" \
     || fail "grub: live root label doesn't match the volume id"
+  # SAINTOS boots straight into the OS: no menu, no media check (it read the whole USB stick for
+  # minutes before booting, and was the default entry).
+  grep -q 'rd.live.check' "$GRUB" && fail "grub: a 'Test this media' entry (rd.live.check) is on the ISO" \
+    || pass "grub: no media check entry"
+  grep -qE '^\s*set timeout=0\s*$' "$GRUB" && pass "grub: no boot menu (timeout=0)" || fail "grub: boot menu timeout isn't 0"
+  grep -qE '^\s*set default="?0"?\s*$' "$GRUB" && pass "grub: default is 'Start SAINTOS'" || fail "grub: default entry isn't 0"
 else
   fail "grub.cfg not found"
 fi

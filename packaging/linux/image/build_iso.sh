@@ -167,6 +167,23 @@ s = s.replace('\t<include from="this://./components/liveinstall.xml"/>',
 assert 'name="SAINTOS"' in s and "saintos/saintos.xml" in s, "Fedora.kiwi layout changed upstream"
 open(p, "w", encoding="utf-8").write(s)
 PY
+# Boot straight into SAINTOS: no GRUB menu, no "Test this media" entry. Fedora's x86 live template
+# defaults to the media check, which reads the whole USB stick for minutes (looks frozen) and refuses
+# to boot on a single bad read. The x86_64 live type gets SAINTOS's one-entry template, no timeout.
+cp "$HERE/grub-saintos.cfg.iso-template" "$D/grub-saintos.cfg.iso-template"
+python3.12 - "$D/components/liveinstall.xml" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+old = '<bootloader name="grub2" grub_template="grub-x86.cfg.iso-template" console="console" timeout="10"/>'
+assert s.count(old) == 1, "liveinstall.xml: x86_64 live bootloader line changed upstream; review the SAINTOS boot patch"
+s = s.replace(old, '<bootloader name="grub2" grub_template="grub-saintos.cfg.iso-template" console="console" timeout="0" timeout_style="hidden"/>')
+# mediacheck also implants the ISO checksum the removed entry used; the x86_64 type is the first one.
+i = s.index('mediacheck="true"')
+assert i < s.index("grub-saintos.cfg.iso-template") < s.find('mediacheck="true"', i + 1), "liveinstall.xml: x86_64 isn't the first live type"
+s = s[:i] + 'mediacheck="false"' + s[i + len('mediacheck="true"'):]
+open(p, "w", encoding="utf-8").write(s)
+PY
 python3.12 - "$D/config.sh" <<'PY'
 import sys
 p = sys.argv[1]

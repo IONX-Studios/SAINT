@@ -20,7 +20,9 @@ prepare() {
 }
 
 build() {
-  python src/packaging/linux/branding/make_branding.py art --name Halo --subtitle "Arch Linux  ·  KDE Plasma"
+  # SAINT's own artwork, as on SAINTOS: the SAINT mark in the orange Halo ring, SAINT orange on near-black,
+  # and SAINT as the wordmark on the wallpaper and boot splash. Only the OS name (os-release) is Halo.
+  python src/packaging/linux/branding/make_branding.py art --name SAINT --subtitle "Halo  ·  Arch Linux  ·  KDE Plasma"
 }
 
 package() {

@@ -131,6 +131,19 @@ def test_pkgbuild_checksums_match_sources():
             assert (p.parent / s.strip('"')).is_file(), f"{p.parent.name}: {s}"
 
 
+def test_halo_keeps_saints_branding():
+    """The artwork is SAINT's (same generator, logo and colours as SAINTOS); only os-release says Halo."""
+    pkgbuild = (ARCH / "pkgbuilds" / "halo-branding" / "PKGBUILD").read_text(encoding="utf-8")
+    assert "make_branding.py art --name SAINT " in pkgbuild
+    for icon in ("apps/saintos.png", "apps/halo.png"):
+        assert icon in pkgbuild
+    assert 'NAME="Halo"' in pkgbuild
+    saint = (ARCH / "pkgbuilds" / "saint" / "PKGBUILD").read_text(encoding="utf-8")
+    assert "SAINT.png" in saint and "apps/saint.png" in saint
+    gen = (ROOT / "packaging" / "linux" / "branding" / "make_branding.py").read_text(encoding="utf-8")
+    assert "ACCENT = (254, 170, 52)" in gen and 'ROOT / "SAINT.png"' in gen
+
+
 def test_saint_package_keeps_the_tested_python_lock():
     lock = (ARCH / "pkgbuilds" / "saint" / "saint-runtime.lock").read_text(encoding="utf-8").lower()
     assert re.search(r"^pyside6[-_]essentials==", lock, re.M)

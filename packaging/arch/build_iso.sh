@@ -128,7 +128,8 @@ PKG="$WORK/pkgbuild"; REPOD="$WORK/repo"; AUR="$WORK/aur"
 # From the AUR (built here by paru, as the build user): the installer, and Microsoft-signed shim for
 # Secure Boot. Kept between builds; --rebuild-aur builds them again.
 AUR_PKGS=(calamares shim-signed)
-have_pkg() { compgen -G "$REPOD/$1-[0-9]*.pkg.tar.zst" >/dev/null; }
+# A package or the -bin package that provides it (the AUR's shim-signed is shim-signed-bin).
+have_pkg() { compgen -G "$REPOD/$1-[0-9]*.pkg.tar.zst" >/dev/null || compgen -G "$REPOD/$1-bin-[0-9]*.pkg.tar.zst" >/dev/null; }
 rm -rf "$PKG"
 if [ "$REBUILD_AUR" -eq 1 ]; then
   rm -rf "$REPOD" "$AUR" "$BHOME/.cache/paru" "$WORK/AUR_COMMITS"
@@ -267,7 +268,7 @@ if [ ! -s "$KEYS/MOK.key" ]; then
   openssl x509 -outform DER -in "$KEYS/MOK.crt" -out "$KEYS/MOK.cer"
 fi
 SHIM=/usr/share/shim-signed
-pacman -U --noconfirm --needed "$(ls -1 "$REPOD"/shim-signed-[0-9]*.pkg.tar.zst | tail -n1)" >/dev/null
+pacman -U --noconfirm --needed "$(ls -1 "$REPOD"/shim-signed*-[0-9]*.pkg.tar.zst | tail -n1)" >/dev/null
 [ -s "$SHIM/shimx64.efi" ] && [ -s "$SHIM/mmx64.efi" ] || die "shim-signed has no shimx64.efi/mmx64.efi in $SHIM"
 SB="$WORK/sb"
 rm -rf "$SB"; mkdir -p "$SB"
@@ -294,7 +295,7 @@ rm -rf "$SB"; mkdir -p "$SB"
     -boot_image any replay -append_partition 2 0xef "$ESP" >/dev/null 2>&1
 ) || die "Secure Boot repack failed (in $SB)"
 mv "$WORK/out/halo-signed.iso" "$ISO_SRC"
-echo "shim $(pacman -Q shim-signed | cut -d' ' -f2) -> systemd-boot and kernel signed with $(openssl x509 -in "$KEYS/MOK.crt" -noout -fingerprint -sha256 | cut -d= -f2 | cut -c1-23)…"
+echo "shim $(pacman -Qq | grep -m1 '^shim-signed' | xargs pacman -Q | cut -d' ' -f2) -> systemd-boot and kernel signed with $(openssl x509 -in "$KEYS/MOK.crt" -noout -fingerprint -sha256 | cut -d= -f2 | cut -c1-23)…"
 
 #--------------------------------------------------------------------------
 log "6/7 Release files"

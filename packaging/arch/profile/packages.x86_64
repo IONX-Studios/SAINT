@@ -1,10 +1,10 @@
-# Halo live/installer image: Arch base + KDE Plasma 6 + SAINT. One package per line.
+# Halo live/installer image: Arch base + a lean KDE Plasma 6 + SAINT. One package per line.
+# Lean on purpose (plan.md: smaller and faster than Windows): plasma-desktop and the pieces a desktop
+# needs, not plasma-meta; only the apps Halo ships by default; laptop/desktop firmware, not server NICs.
 
 # Base system and live boot
 base
 linux
-linux-firmware
-sof-firmware
 amd-ucode
 intel-ucode
 mkinitcpio
@@ -12,9 +12,21 @@ mkinitcpio-archiso
 syslinux
 sudo
 nano
-man-db
 zram-generator
 power-profiles-daemon
+
+# Firmware for PCs and laptops (GPUs, Wi-Fi, Bluetooth, audio); server network cards left out
+linux-firmware-amdgpu
+linux-firmware-radeon
+linux-firmware-intel
+linux-firmware-nvidia
+linux-firmware-realtek
+linux-firmware-atheros
+linux-firmware-mediatek
+linux-firmware-broadcom
+linux-firmware-cirrus
+linux-firmware-other
+sof-firmware
 
 # Disks and file systems (the installer and dual boot)
 btrfs-progs
@@ -22,7 +34,6 @@ dosfstools
 e2fsprogs
 exfatprogs
 ntfs-3g
-xfsprogs
 rsync
 
 # Boot loader for installed systems (Calamares) and dual boot detection
@@ -30,40 +41,53 @@ grub
 efibootmgr
 os-prober
 
-# Desktop: KDE Plasma 6 on Wayland
-plasma-meta
+# Desktop: KDE Plasma 6 on Wayland, the parts a desktop needs
+plasma-desktop
+plasma-nm
+plasma-pa
+bluedevil
+powerdevil
+kscreen
+kwallet-pam
+ksshaskpass
+breeze-gtk
+kde-gtk-config
+xdg-desktop-portal-kde
+layer-shell-qt
 sddm
-konsole
-dolphin
-kate
-ark
-spectacle
-gwenview
-okular
+sddm-kcm
+plymouth
+
+# Apps
 firefox
+dolphin
+konsole
+kate
+spectacle
+ark
 xdg-user-dirs
+
+# Fonts: Noto for text, Noto Color Emoji (Apple-style emoji is an optional download in SAINT)
 noto-fonts
 noto-fonts-emoji
-plymouth
 
 # Audio, network, Bluetooth
 pipewire
 pipewire-alsa
 pipewire-pulse
-pipewire-jack
 wireplumber
 networkmanager
 bluez
 bluez-utils
 
-# Apps and AUR
+# Apps from the AUR and Flathub; local AI
 base-devel
 git
 flatpak
 ollama
 paru-bin
 
-# VirtualBox guest support (screen resize, clipboard) for VM testing; inert on real hardware
+# VirtualBox guest services: enabled, but only start inside VirtualBox (vboxservice.service.d/halo.conf)
 virtualbox-guest-utils
 
 # Halo ([halo] repo, built by build_iso.sh)

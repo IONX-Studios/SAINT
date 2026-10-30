@@ -22,8 +22,14 @@ sha256sums=(SKIP
             SKIP
             1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85)
 
-_python() {   # the uv-managed CPython 3.12 in $srcdir (installed by build())
-  export UV_PYTHON_INSTALL_DIR="$srcdir/python-dist" UV_CACHE_DIR="$srcdir/uv-cache" UV_PYTHON_PREFERENCE=only-managed
+# build_iso.sh points these at caches in its workdir, so a rebuild doesn't download ~1 GB again.
+_uv_env() {
+  export UV_PYTHON_INSTALL_DIR="${HALO_UV_PYTHON_DIR:-$srcdir/python-dist}"
+  export UV_CACHE_DIR="${UV_CACHE_DIR:-$srcdir/uv-cache}" UV_PYTHON_PREFERENCE=only-managed
+}
+
+_python() {   # the uv-managed CPython 3.12 (installed by build())
+  _uv_env
   readlink -f "$(uv python find 3.12)"
 }
 
@@ -33,7 +39,7 @@ prepare() {
 }
 
 build() {
-  export UV_PYTHON_INSTALL_DIR="$srcdir/python-dist" UV_CACHE_DIR="$srcdir/uv-cache"
+  _uv_env
   uv python install 3.12
   "$(_python)" --version
 }
@@ -48,7 +54,8 @@ package() {
 
   # The venv, installed exactly from the lock (no resolution; en_core_web_sm from the pinned wheel).
   "$root/python/bin/python3.12" -m venv --without-pip "$root/venv"
-  uv pip install --python "$root/venv/bin/python" --no-deps --find-links "$srcdir" -r "$srcdir/saint-runtime.lock"
+  _uv_env
+  uv pip install --link-mode=copy --python "$root/venv/bin/python" --no-deps --find-links "$srcdir" -r "$srcdir/saint-runtime.lock"
   cp -a "$srcdir/app" "$root/app"
 
   # The package fails here, not on someone's desktop, if SAINT's runtime doesn't import.

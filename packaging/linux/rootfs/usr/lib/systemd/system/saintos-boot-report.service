@@ -5,6 +5,9 @@
 Description=SAINTOS boot report (serial console)
 After=graphical.target
 ConditionPathExists=/dev/ttyS0
+# Most PCs have a /dev/ttyS0 device even without a port; the report (and SAINT's self-test it runs)
+# is only for VM boot tests.
+ConditionVirtualization=vm
 
 [Service]
 Type=oneshot

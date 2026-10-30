@@ -39,11 +39,19 @@ def test_profile_boots_bios_and_uefi_from_install_dir_halo():
 def test_packages_list_has_the_desktop_saint_and_installer_but_not_discover():
     pkgs = _packages()
     assert len(pkgs) == len(set(pkgs)), "duplicate package"
-    for p in ("base", "linux", "mkinitcpio-archiso", "syslinux", "plasma-meta", "sddm", "firefox", "plymouth",
-              "saint", "halo-branding", "calamares", "halo-calamares-config", "paru-bin", "grub", "os-prober",
-              "efibootmgr", "ollama", "rsync", "base-devel"):
+    for p in ("base", "linux", "mkinitcpio-archiso", "syslinux", "plasma-desktop", "sddm", "plymouth", "saint",
+              "halo-branding", "calamares", "halo-calamares-config", "paru-bin", "grub", "os-prober", "efibootmgr",
+              "ollama", "rsync", "base-devel", "layer-shell-qt", "noto-fonts-emoji",
+              "firefox", "dolphin", "konsole", "kate", "spectacle", "ark"):
         assert p in pkgs, p
-    assert "discover" not in pkgs and "plasma-discover" not in pkgs
+    # Lean: no meta packages that pull Discover and dozens of apps, no server firmware.
+    for p in ("discover", "plasma-discover", "plasma-meta", "plasma", "kde-applications-meta", "linux-firmware",
+              "linux-firmware-mellanox", "linux-firmware-liquidio", "linux-firmware-nfp", "linux-firmware-qlogic"):
+        assert p not in pkgs, p
+    drop_in = (AIROOTFS / "etc" / "systemd" / "system" / "vboxservice.service.d" / "halo.conf").read_text(encoding="utf-8")
+    assert "ConditionVirtualization=oracle" in drop_in
+    conf = (AIROOTFS / "etc" / "mkinitcpio.conf.d" / "halo-live.conf").read_text(encoding="utf-8")
+    assert 'COMPRESSION="zstd"' in conf
 
 
 def test_boot_entries_use_the_install_dir_and_keep_the_iso_mounted():

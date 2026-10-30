@@ -396,7 +396,19 @@ Per phase:
 ## 14. Open questions
 
 Answered 2026-10-30: name = Halo · base = Arch (real AUR) · phones = iPhone + Android · remote = TeamViewer +
-built-in RDP · settings = front door + embedded KDE.
+built-in RDP · settings = front door + embedded KDE · **Secure Boot = Microsoft-signed shim + one-time MOK
+enrolment** · **Ollama = a small (~2 GB) model set up automatically in the background** · **Evolve may make
+system-level changes, always after a Btrfs snapshot and the user's password prompt** · Apple emoji = optional
+download, Noto Color Emoji by default · keep all of SAINT's existing branding (artwork, colours, SAINT wordmark).
+
+Added 2026-10-30:
+- **Lean OS targets** (vs Windows 11 ≈ 27 GB installed, 3–4 GB idle RAM): ISO < 3 GB, installed < 12 GB, boot
+  to desktop < 20 s in the VM, idle RAM < 1.5 GB. Measured by the boot report (`SAINTOS-METRIC`) and the build.
+- **Windows app agent** (Store, Phase 2): "SAINT, install Notepad++" finds the app in winget's public manifest
+  catalog (microsoft/winget-pkgs: installer URL + SHA-256), downloads and verifies it, installs it with Wine into
+  a per-app prefix (Bottles-compatible), and adds a menu entry. Prefers a native Linux/Flathub version when one
+  exists. Apps that can't work under Wine (kernel anti-cheat, drivers, some DRM) are reported as such instead of
+  installing something broken.
 
 1. **Name form**: plain "Halo", or "Halo OS" / "SAINT Halo" (lower trademark risk if ever shared publicly)?
 5. **Taskbar pins**: Firefox · Dolphin · Konsole · SAINT — anything else (Steam, VS Code, Spotify)? Keep the

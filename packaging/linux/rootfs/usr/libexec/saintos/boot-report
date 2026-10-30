@@ -4,6 +4,8 @@
 #   SAINTOS-DESKTOP-OK user=<name> session=<id>     a graphical (Wayland/X11) user session is active
 #   SAINTOS-SAINT-OK / SAINTOS-SAINT-FAIL <reason>  SAINT's offline self-test (no model, no network)
 #   SAINTOS-DESKTOP-TIMEOUT                         no session within 240 s
+#   SAINTOS-METRIC desktop_s=.. ram_idle_mb=.. ...  kernel start -> Plasma shell running; RAM in use after
+#                                                   60 s idle (MemTotal - MemAvailable); systemd-analyze
 set -u
 TTY=/dev/ttyS0
 say() { printf '%s\n' "$*" > "$TTY" 2>/dev/null || true; }
@@ -18,6 +20,13 @@ for _ in $(seq 1 120); do
     state=$(loginctl show-session "$sid" -p State --value 2>/dev/null)
     if { [ "$type" = wayland ] || [ "$type" = x11 ]; } && [ "$state" = active ]; then
       say "SAINTOS-DESKTOP-OK user=$user session=$sid type=$type"
+      # Measured before SAINT's self-test below, which would add its own memory and CPU.
+      for _ in $(seq 1 60); do pgrep -u "$user" -x plasmashell >/dev/null && break; sleep 1; done
+      desktop_s=$(cut -d' ' -f1 /proc/uptime)
+      sleep 60
+      ram_mb=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {printf "%d", (t - a) / 1024}' /proc/meminfo)
+      analyze=$(systemd-analyze time 2>/dev/null | head -n1 | sed 's/^Startup finished in //' | tr -s ' ')
+      say "SAINTOS-METRIC desktop_s=$desktop_s ram_idle_mb=$ram_mb ram_total_mb=$(awk '/^MemTotal:/ {printf "%d", $2/1024}' /proc/meminfo) root_used_mb=$(df -m --output=used / | tail -n1 | tr -d ' ') analyze=\"$analyze\""
       tmp=$(mktemp -d)
       if out=$(cd /opt/saint/app && QT_QPA_PLATFORM=offscreen SAINT_SELFTEST_NO_VOICE=1 SAINT_DATA_DIR="$tmp" HOME="$tmp" \
                timeout 180 /opt/saint/venv/bin/python app.py --selftest "$tmp/selftest.json" 2>&1); then

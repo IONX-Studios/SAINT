@@ -17,8 +17,20 @@ On Arch itself (as root): `packaging/arch/build_iso.sh --workdir /var/tmp/halo-b
 Output in `dist/halo/`: `Halo-x86_64.iso`, `SHA256SUMS`, `BUILD_INFO.json`, `Halo-x86_64.packages`,
 `AUR_COMMITS`, `VALIDATION.txt`.
 
-Options: `--allow-dirty` (build tracked local changes), `--live-mirrors` (today's Arch mirrors instead of
-the pinned snapshot: faster, not repeatable), `--no-validate`.
+Modes (`--mode`):
+
+| Mode | Packages from | Root image | Use |
+|---|---|---|---|
+| `test` (default) | today's Arch mirrors | zstd -3 | everyday builds |
+| `fast` | today's Arch mirrors | lz4 | quickest boot test of a change (bigger ISO) |
+| `release` | pinned Arch Linux Archive snapshot (`ARCH_SNAPSHOT`) | zstd -19 | repeatable, smallest ISO |
+
+Other options: `--allow-dirty` (build tracked local changes), `--rebuild-aur` (rebuild paru-bin and
+Calamares instead of reusing the last build's; Calamares takes ~30 min), `--no-validate`.
+
+Kept between builds in the workdir: the pacman package cache, uv's Python and wheels (SAINT's ~1 GB
+runtime), the AUR packages and paru's clones. Step times are printed at the end and saved in
+`BUILD_INFO.json` (`step_seconds`).
 
 ## What's where
 

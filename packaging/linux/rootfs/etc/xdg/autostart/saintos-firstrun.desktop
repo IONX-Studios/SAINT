@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=SAINTOS first-run setup
-Comment=Opens the SAINTOS Control Center once for each new user
+Name=Halo first-run setup
+Comment=Opens the Halo Control Center once for each new user
 Exec=/usr/libexec/saintos/firstrun
 Icon=saintos
 NoDisplay=true

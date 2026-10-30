@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=SAINTOS Control Center
+Name=Halo Control Center
 GenericName=Assistant Settings
 Comment=SAINT service, AI providers and models, voice, permissions, data and diagnostics
 Exec=/usr/bin/saintos-control

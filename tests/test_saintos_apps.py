@@ -22,7 +22,7 @@ def test_catalog_has_the_usual_apps(catalog):
 
 
 def test_plan_groups_installs_and_asks_for_admin_once(catalog):
-    steps = sa.plan(["steam", "claude-code", "discord", "dev-tools", "steam"], catalog, home="/home/me")
+    steps = sa.plan(["steam", "claude-code", "discord", "dev-tools", "steam"], catalog, home="/home/me", manager="dnf")
     argvs = [s.argv for s in steps]
     dnf = [a for a in argvs if a[:2] == ["pkexec", "dnf"]]
     assert len(dnf) == 1 and "nodejs" in dnf[0] and "git" in dnf[0] and dnf[0].count("nodejs") == 1
@@ -68,6 +68,47 @@ def test_run_plan_reports_per_app_and_keeps_going(catalog):
 
 
 def test_missing_tools_counts_npm_as_coming_from_dnf(catalog):
-    steps = sa.plan(["claude-code"], catalog)
+    steps = sa.plan(["claude-code"], catalog, manager="dnf")
     assert sa.missing_tools(steps, which=lambda t: f"/usr/bin/{t}" if t in ("pkexec", "dnf") else None) == []
     assert sa.missing_tools(sa.plan(["steam"], catalog), which=lambda t: None) == ["flatpak"]
+
+
+def test_halo_installs_distribution_packages_with_pacman(catalog):
+    """Halo is Arch: one pkexec pacman for every distribution package, with the Arch names (npm is
+    its own package there)."""
+    steps = sa.plan(["claude-code", "dev-tools", "ollama", "steam"], catalog, home="/home/me", manager="pacman")
+    argvs = [s.argv for s in steps]
+    pac = [a for a in argvs if a[:2] == ["pkexec", "pacman"]]
+    assert len(pac) == 1 and pac[0][:5] == ["pkexec", "pacman", "-S", "--needed", "--noconfirm"]
+    for pkg in ("nodejs", "npm", "github-cli", "python-pip", "ollama"):
+        assert pac[0].count(pkg) == 1, pkg
+    assert "gh" not in pac[0] and "gcc-c++" not in pac[0]          # Fedora names never reach pacman
+    assert not any(a[:2] == ["pkexec", "dnf"] for a in argvs)
+    assert steps[0].label.startswith("Arch packages:") and sum(s.needs_admin for s in steps) == 1
+    assert sa.missing_tools(steps, which=lambda t: f"/usr/bin/{t}" if t in ("pkexec", "pacman", "flatpak") else None) == []
+
+
+def test_every_distribution_package_has_an_arch_name(catalog, tmp_path):
+    assert all(a.arch.split() for a in catalog.values() if a.method == "dnf")
+    bad = {"apps": [{"id": "x", "name": "x", "category": "c", "method": "dnf", "ref": "git"}]}
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps(bad))
+    with pytest.raises(ValueError):
+        sa.load_catalog(p)
+    bad["apps"][0]["arch"] = "git --overwrite=*"
+    p.write_text(json.dumps(bad))
+    with pytest.raises(ValueError):
+        sa.load_catalog(p)
+
+
+def test_installed_asks_the_systems_own_package_manager(catalog):
+    calls = []
+
+    def run(argv, **kw):
+        calls.append(argv)
+        return type("R", (), {"returncode": 0})()
+    assert sa.installed(catalog["ollama"], run=run, manager="pacman")
+    assert sa.installed(catalog["ollama"], run=run, manager="dnf")
+    assert calls == [["pacman", "-Q", "ollama"], ["rpm", "-q", "ollama"]]
+    assert sa.system_manager(which=lambda t: "/usr/bin/pacman" if t == "pacman" else None) == "pacman"
+    assert sa.system_manager(which=lambda t: None) == "dnf"

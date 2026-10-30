@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "SAINTOS App Installer catalog. method: flatpak (Flathub id, per-user, no admin), dnf (Fedora packages, one admin prompt), npm (per-user global npm package, needs: dnf nodejs). Only ids listed here can be installed.",
+  "about": "SAINTOS App Installer catalog. method: flatpak (Flathub id, per-user, no admin), dnf (distribution packages, one admin prompt: \"ref\" names on Fedora, \"arch\" names on Halo/Arch), npm (per-user global npm package, needs: dnf nodejs). Only ids listed here can be installed.",
   "categories": ["Gaming", "Developer", "AI", "Web & Chat", "Media", "Creative", "Office & Utilities"],
   "apps": [
     {"id": "steam", "name": "Steam", "category": "Gaming", "method": "flatpak", "ref": "com.valvesoftware.Steam", "about": "Valve's game store and launcher (Proton runs Windows games)"},
@@ -11,13 +11,13 @@
     {"id": "bottles", "name": "Bottles", "category": "Gaming", "method": "flatpak", "ref": "com.usebottles.bottles", "about": "Run Windows apps with Wine"},
 
     {"id": "claude-code", "name": "Claude Code", "category": "AI", "method": "npm", "ref": "@anthropic-ai/claude-code", "needs": ["nodejs"], "about": "Anthropic's coding agent in the terminal (command: claude)"},
-    {"id": "ollama", "name": "Ollama", "category": "AI", "method": "dnf", "ref": "ollama", "about": "Run local language models for SAINT (no model is downloaded)"},
+    {"id": "ollama", "name": "Ollama", "category": "AI", "method": "dnf", "ref": "ollama", "arch": "ollama", "about": "Run local language models for SAINT (no model is downloaded)"},
 
     {"id": "vscode", "name": "Visual Studio Code", "category": "Developer", "method": "flatpak", "ref": "com.visualstudio.code", "about": "Microsoft's code editor"},
     {"id": "github-desktop", "name": "GitHub Desktop", "category": "Developer", "method": "flatpak", "ref": "io.github.shiftey.Desktop", "about": "Git with a GUI"},
     {"id": "pycharm", "name": "PyCharm Community", "category": "Developer", "method": "flatpak", "ref": "com.jetbrains.PyCharm-Community", "about": "Python IDE"},
-    {"id": "dev-tools", "name": "Developer tools", "category": "Developer", "method": "dnf", "ref": "git gcc gcc-c++ make cmake nodejs python3-pip podman gh", "about": "git, compilers, Node.js, pip, Podman, GitHub CLI"},
-    {"id": "terminal-tools", "name": "Terminal tools", "category": "Developer", "method": "dnf", "ref": "btop fastfetch neovim ripgrep fzf", "about": "btop, fastfetch, Neovim, ripgrep, fzf"},
+    {"id": "dev-tools", "name": "Developer tools", "category": "Developer", "method": "dnf", "ref": "git gcc gcc-c++ make cmake nodejs python3-pip podman gh", "arch": "git gcc make cmake nodejs npm python-pip podman github-cli", "about": "git, compilers, Node.js, pip, Podman, GitHub CLI"},
+    {"id": "terminal-tools", "name": "Terminal tools", "category": "Developer", "method": "dnf", "ref": "btop fastfetch neovim ripgrep fzf", "arch": "btop fastfetch neovim ripgrep fzf", "about": "btop, fastfetch, Neovim, ripgrep, fzf"},
 
     {"id": "chrome", "name": "Google Chrome", "category": "Web & Chat", "method": "flatpak", "ref": "com.google.Chrome", "about": "Google's browser (Firefox is already installed)"},
     {"id": "brave", "name": "Brave", "category": "Web & Chat", "method": "flatpak", "ref": "com.brave.Browser", "about": "Privacy-focused browser"},

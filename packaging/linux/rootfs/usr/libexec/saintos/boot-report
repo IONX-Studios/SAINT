@@ -7,8 +7,8 @@
 set -u
 TTY=/dev/ttyS0
 say() { printf '%s\n' "$*" > "$TTY" 2>/dev/null || true; }
-VERSION=$(sed -n 's/^SAINTOS_VERSION=//p' /etc/os-release | tr -d '"')
-MODE=installed; grep -q 'rd.live.image' /proc/cmdline && MODE=live
+VERSION=$(sed -nE 's/^(HALO|SAINTOS)_VERSION=//p' /etc/os-release | tr -d '"')
+MODE=installed; grep -qE 'rd.live.image|archisobasedir=' /proc/cmdline && MODE=live
 say "SAINTOS-BOOT-OK ${VERSION:-unknown} $MODE"
 
 for _ in $(seq 1 120); do

@@ -6,8 +6,9 @@ SAINTOS App Installer: pick the apps you always use, install them in one go (lik
 The catalog (packaging/linux/apps/catalog.json, installed to /usr/share/saintos/apps.json)
 is the only source of what can be installed. A selection is turned into a short plan:
 
-    1. dnf      one `pkexec dnf install -y --skip-unavailable ...` for every Fedora package
-                (one admin prompt; includes what npm apps need, e.g. nodejs)
+    1. system   one admin prompt for every distribution package (includes what npm apps need,
+                e.g. nodejs): `pkexec pacman -S --needed --noconfirm ...` on Halo (Arch; the catalog's
+                "arch" names), `pkexec dnf install -y --skip-unavailable ...` on Fedora ("ref")
     2. flatpak  `flatpak remote-add --user --if-not-exists flathub ...` then one
                 `flatpak install --user -y --noninteractive flathub ...` (no admin needed)
     3. npm      `npm install -g --prefix ~/.local <package>` per app (no admin needed)
@@ -39,6 +40,13 @@ _SAFE_DNF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 _SAFE_FLATPAK = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$")
 _SAFE_NPM = re.compile(r"^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$")
 METHODS = ("dnf", "flatpak", "npm")
+# What an npm app's "needs" are called on Arch (npm is its own package there).
+_ARCH_NEEDS = {"nodejs": ["nodejs", "npm"]}
+
+
+def system_manager(which: Callable[[str], Optional[str]] = shutil.which) -> str:
+    """'pacman' on Halo (Arch), else 'dnf' (SAINTOS on Fedora)."""
+    return "pacman" if which("pacman") else "dnf"
 
 
 @dataclass
@@ -50,10 +58,19 @@ class App:
     ref: str
     about: str = ""
     needs: List[str] = field(default_factory=list)
+    arch: str = ""                  # pacman package names for a "dnf" (distribution package) app
 
     @property
     def refs(self) -> List[str]:
         return self.ref.split() if self.method == "dnf" else [self.ref]
+
+    def system_refs(self, manager: str) -> List[str]:
+        return self.arch.split() if manager == "pacman" else self.refs
+
+    def system_needs(self, manager: str) -> List[str]:
+        if manager != "pacman":
+            return list(self.needs)
+        return [p for n in self.needs for p in _ARCH_NEEDS.get(n, [n])]
 
 
 @dataclass
@@ -84,26 +101,38 @@ def validate(app: App):
     for ref in app.refs:
         if not pattern.match(ref):
             raise ValueError(f"{app.id}: unsafe {app.method} reference {ref!r}")
+    if app.method == "dnf" and not app.arch.split():
+        raise ValueError(f"{app.id}: a distribution package needs its Arch name(s) in \"arch\"")
+    for ref in app.arch.split():
+        if not _SAFE_DNF.match(ref):
+            raise ValueError(f"{app.id}: unsafe pacman package {ref!r}")
     for dep in app.needs:
         if not _SAFE_DNF.match(dep):
             raise ValueError(f"{app.id}: unsafe dependency {dep!r}")
 
 
-def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] = None) -> List[Step]:
-    """Turn app ids into the commands that install them. Unknown ids raise KeyError."""
+def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] = None,
+         manager: Optional[str] = None) -> List[Step]:
+    """Turn app ids into the commands that install them. Unknown ids raise KeyError.
+    ``manager`` is 'pacman' or 'dnf' (default: whichever this system has)."""
     apps = [catalog[i] for i in dict.fromkeys(selected)]           # keeps order, drops repeats
     home = home or os.path.expanduser("~")
+    manager = manager or system_manager()
     steps: List[Step] = []
-    dnf_pkgs, dnf_apps = [], []
+    sys_pkgs, sys_apps = [], []
     for a in apps:
         if a.method == "dnf":
-            dnf_pkgs += a.refs
-            dnf_apps.append(a.id)
-        dnf_pkgs += a.needs
-    if dnf_pkgs:
-        steps.append(Step("Fedora packages: " + ", ".join(dict.fromkeys(dnf_pkgs)),
-                          ["pkexec", "dnf", "install", "-y", "--skip-unavailable", *dict.fromkeys(dnf_pkgs)],
-                          dnf_apps or [a.id for a in apps if a.needs], needs_admin=True))
+            sys_pkgs += a.system_refs(manager)
+            sys_apps.append(a.id)
+        sys_pkgs += a.system_needs(manager)
+    if sys_pkgs:
+        pkgs = list(dict.fromkeys(sys_pkgs))
+        if manager == "pacman":
+            label, argv = "Arch packages: ", ["pkexec", "pacman", "-S", "--needed", "--noconfirm", *pkgs]
+        else:
+            label, argv = "Fedora packages: ", ["pkexec", "dnf", "install", "-y", "--skip-unavailable", *pkgs]
+        steps.append(Step(label + ", ".join(pkgs), argv, sys_apps or [a.id for a in apps if a.needs],
+                          needs_admin=True))
     flat = [a for a in apps if a.method == "flatpak"]
     if flat:
         steps.append(Step("Flathub (for your user)", ["flatpak", "remote-add", "--user", "--if-not-exists",
@@ -120,21 +149,23 @@ def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] =
 
 def missing_tools(steps: List[Step], which: Callable[[str], Optional[str]] = shutil.which) -> List[str]:
     tools = {s.argv[0] for s in steps}
-    if any(s.argv[:2] == ["pkexec", "dnf"] for s in steps):
-        tools.add("dnf")
-    # npm arrives with the dnf step (nodejs), so it doesn't have to exist beforehand.
-    if any(s.argv[:2] == ["pkexec", "dnf"] and "nodejs" in s.argv for s in steps):
+    system = [s for s in steps if s.argv[:2] in (["pkexec", "dnf"], ["pkexec", "pacman"])]
+    tools.update(s.argv[1] for s in system)
+    # npm arrives with the system-package step (nodejs), so it doesn't have to exist beforehand.
+    if any("nodejs" in s.argv for s in system):
         tools.discard("npm")
     return sorted(t for t in tools if not which(t))
 
 
-def installed(app: App, run: Callable = subprocess.run) -> bool:
-    """Is it already installed? (flatpak info / rpm -q / ~/.local/bin for npm)"""
+def installed(app: App, run: Callable = subprocess.run, manager: Optional[str] = None) -> bool:
+    """Is it already installed? (flatpak info / pacman -Q or rpm -q / ~/.local/bin for npm)"""
     try:
         if app.method == "flatpak":
             return run(["flatpak", "info", app.ref], capture_output=True).returncode == 0
         if app.method == "dnf":
-            return run(["rpm", "-q", *app.refs], capture_output=True).returncode == 0
+            manager = manager or system_manager()
+            query = ["pacman", "-Q"] if manager == "pacman" else ["rpm", "-q"]
+            return run([*query, *app.system_refs(manager)], capture_output=True).returncode == 0
         if app.method == "npm":
             return (Path.home() / ".local" / "lib" / "node_modules" / app.ref).exists()
     except OSError:

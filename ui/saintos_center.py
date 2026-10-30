@@ -33,6 +33,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 SERVICE = "saint.service"
 BUILD_INFO = Path("/usr/share/saintos/build-info.json")
+HALO_BUILD_INFO = Path("/usr/share/halo/build-info.json")
+OS_RELEASE = Path("/etc/os-release")
 
 
 # --------------------------------------------------------------------------- #
@@ -140,10 +142,33 @@ def data_locations() -> Dict[str, str]:
 
 
 def build_info() -> Dict:
+    for path in (HALO_BUILD_INFO, BUILD_INFO):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return {}
+
+
+def is_halo() -> bool:
+    """Halo (Arch Linux based) rather than SAINTOS (Fedora based)?"""
     try:
-        return json.loads(BUILD_INFO.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+        return any(line.strip() == "ID=halo" for line in OS_RELEASE.read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return False
+
+
+def product() -> str:
+    return "Halo" if is_halo() else "SAINTOS"
+
+
+def update_command() -> List[str]:
+    """What "Update now" runs, in a terminal so prompts and progress are visible."""
+    if is_halo():
+        upd = "paru -Syu" if shutil.which("paru") else "sudo pacman -Syu"
+    else:
+        upd = "sudo dnf upgrade --refresh"
+    return ["konsole", "-e", "bash", "-c", f"{upd}; echo; read -rp 'Done. Press Enter to close.'"]
 
 
 def os_name() -> str:
@@ -252,7 +277,7 @@ def build_window(start_page: str = "Welcome"):
         return w, v
 
     win = QMainWindow()
-    win.setWindowTitle("SAINTOS Control Center")
+    win.setWindowTitle(f"{product()} Control Center")
     icon = Path("/usr/share/icons/hicolor/256x256/apps/saintos.png")
     win.setWindowIcon(QIcon(str(icon)) if icon.exists() else QIcon(str(Path(__file__).parent.parent / "SAINT.png")))
     win.resize(980, 640)
@@ -268,15 +293,17 @@ def build_window(start_page: str = "Welcome"):
     win.setCentralWidget(root)
 
     # ---------------- Welcome
-    w, v = page("Welcome to SAINTOS", f"{os_name()} — KDE Plasma with SAINT built in.")
+    halo = is_halo()
+    w, v = page(f"Welcome to {product()}", f"{os_name()} — KDE Plasma with SAINT built in.")
     info = QLabel(
-        "SAINTOS is a normal Fedora KDE desktop: everything works without SAINT, without a network "
-        "and without an AI model.\n\nTo get SAINT talking:\n"
+        f"{product()} is a normal {'Arch Linux' if halo else 'Fedora'} KDE desktop: everything works without "
+        "SAINT, without a network and without an AI model.\n\nTo get SAINT talking:\n"
         "  1. AI — install Ollama and pull one model you choose (SAINT never downloads models on its own), "
         "or point SAINT at a provider you already use.\n"
         "  2. Voice — pick your microphone. SAINT's speech models download the first time you start it.\n"
         "  3. Service — start SAINT now, and turn on “start at login” if you want it always there.\n\n"
-        "SAINTOS is a Fedora Remix: built from Fedora Linux packages, not an official Fedora product.")
+        + ("Halo is built from Arch Linux packages; it isn't an official Arch Linux product." if halo else
+           "SAINTOS is a Fedora Remix: built from Fedora Linux packages, not an official Fedora product."))
     info.setWordWrap(True)
     v.addWidget(info)
     wrow = QHBoxLayout()
@@ -295,7 +322,8 @@ def build_window(start_page: str = "Welcome"):
     from PySide6.QtWidgets import QGridLayout, QGroupBox, QScrollArea
     from core import saintos_apps as sa
     w, v = page("Install your apps", "Tick the apps you use and install them all at once. Desktop apps come from "
-                                     "Flathub for your user (no password). Fedora packages ask for your password once.")
+                                     f"Flathub for your user (no password). {'Arch' if is_halo() else 'Fedora'} packages ask for your "
+                                     "password once.")
     try:
         catalog = sa.load_catalog()
     except (OSError, ValueError) as e:
@@ -598,25 +626,27 @@ def build_window(start_page: str = "Welcome"):
     stack.addWidget(w)
 
     # ---------------- Updates
-    w, v = page("Updates", "SAINTOS updates come from Fedora's repositories (dnf / Discover).")
+    w, v = page("Updates", "Halo updates come from Arch Linux's repositories and the AUR (pacman / paru)."
+                if is_halo() else "SAINTOS updates come from Fedora's repositories (dnf / Discover).")
     bi = build_info()
-    txt = QLabel("\n".join(f"{k}: {bi[k]}" for k in ("saintos_version", "fedora_release", "source_commit",
-                                                     "built_at") if k in bi) or "No SAINTOS build information "
-                 "(running from a source checkout).")
+    txt = QLabel("\n".join(f"{k}: {bi[k]}" for k in ("halo_version", "arch_snapshot", "saintos_version",
+                                                     "fedora_release", "source_commit", "built_at") if k in bi)
+                 or f"No {product()} build information (running from a source checkout).")
     v.addWidget(txt)
-    ubtn = QPushButton("Check for updates in Discover")
+    ubtn = QPushButton("Update now (opens a terminal)")
     umsg = QLabel("")
 
-    def open_discover():
-        if shutil.which("plasma-discover"):
-            subprocess.Popen(["plasma-discover", "--mode", "update"], start_new_session=True)
-            umsg.setText("Discover opened on its Updates page.")
-        else:
-            umsg.setText("Discover isn't installed; run `sudo dnf upgrade --refresh` in a terminal.")
-    ubtn.clicked.connect(open_discover)
+    def run_update():
+        cmd = update_command()
+        if not shutil.which(cmd[0]):
+            umsg.setText(f"Konsole isn't installed; run `{cmd[-1].split(';')[0]}` in a terminal.")
+            return
+        subprocess.Popen(cmd, start_new_session=True)
+        umsg.setText("Updating in the terminal window.")
+    ubtn.clicked.connect(run_update)
     v.addWidget(ubtn, 0, Qt.AlignLeft)
     v.addWidget(umsg)
-    v.addWidget(QLabel("SAINT itself (/opt/saint) is updated by installing a newer SAINTOS build; an in-place "
+    v.addWidget(QLabel(f"SAINT itself (/opt/saint) is updated by installing a newer {product()} build; an in-place "
                        "SAINT updater is planned."))
     v.addStretch(1)
     stack.addWidget(w)
@@ -635,7 +665,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication(sys.argv[:1])
-    app.setApplicationName("SAINTOS Control Center")
+    app.setApplicationName(f"{product()} Control Center")
     app.setDesktopFileName("saintos-control")
     try:
         from core.config import config

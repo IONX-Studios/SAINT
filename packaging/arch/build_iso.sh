@@ -2,13 +2,14 @@
 # Build the Halo live/installer ISO (x86_64) on Arch Linux. Normally run inside a throwaway Arch
 # container by build_in_container.sh, so any Linux host with podman or docker can build it.
 #
-#   packaging/arch/build_iso.sh [--workdir DIR] [--dist DIR] [--allow-dirty] [--live-mirrors] [--no-validate]
+#   packaging/arch/build_iso.sh [--workdir DIR] [--dist DIR] [--allow-dirty] [--live-mirrors] [--reuse-aur] [--no-validate]
 #
 #   1. host: Arch, x86_64, root; pacman pointed at the Arch Linux Archive snapshot in ARCH_SNAPSHOT
 #      (--live-mirrors: today's mirrors instead, faster but not repeatable)
 #   2. source: SAINT commit (+ tracked local changes with --allow-dirty) -> saint-src.tar
 #   3. [halo] repo: saint, halo-branding, halo-calamares-config built with makepkg as an unprivileged
-#      user; paru-bin and calamares (with its AUR dependencies) built from the AUR; repo-add
+#      user; paru-bin and calamares (with its AUR dependencies) built from the AUR (--reuse-aur keeps
+#      the ones the last build in this --workdir made: Calamares takes ~30 min to compile); repo-add
 #   4. profile: packaging/arch/profile + pacman.conf ([halo] + snapshot) + enabled services
 #   5. mkarchiso
 #   6. dist/: Halo-x86_64.iso, SHA256SUMS, BUILD_INFO.json, package list, AUR commits
@@ -24,6 +25,7 @@ DIST="$REPO/dist/halo"
 ALLOW_DIRTY=0
 VALIDATE=1
 LIVE_MIRRORS=0
+REUSE_AUR=0
 MIN_FREE_GB=25
 BUILDER=builder
 
@@ -33,15 +35,20 @@ while [ $# -gt 0 ]; do
     --dist) DIST="$2"; shift 2 ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --live-mirrors) LIVE_MIRRORS=1; shift ;;
+    --reuse-aur) REUSE_AUR=1; shift ;;
     --no-validate) VALIDATE=0; shift ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "build_iso: unknown option $1" >&2; exit 2 ;;
   esac
 done
 
 log() { printf '\n==> %s\n' "$*"; }
 die() { printf 'build_iso: ERROR: %s\n' "$*" >&2; exit 1; }
-as_builder() { runuser -u "$BUILDER" -- env HOME="/home/$BUILDER" PKGDEST="$REPOD" "$@"; }
+# The build user's home (paru's AUR clones) is in the workdir, so it outlives the container.
+BHOME="$WORK/builder-home"
+as_builder() { runuser -u "$BUILDER" -- env HOME="$BHOME" PKGDEST="$REPOD" "$@"; }
+# Root reading the build user's clones: git refuses other users' repositories without safe.directory.
+aur_commit() { git -c safe.directory='*' -C "$1" rev-parse HEAD 2>/dev/null || echo unrecorded; }
 
 VERSION="$(tr -d '[:space:]' < "$HERE/VERSION")"
 eval "$(grep -E '^snapshot=[0-9]{4}/[0-9]{2}/[0-9]{2}$' "$HERE/ARCH_SNAPSHOT")"
@@ -67,7 +74,9 @@ echo "Server = $SERVER" > /etc/pacman.d/mirrorlist
 pacman-key --init >/dev/null 2>&1 || true
 pacman-key --populate archlinux >/dev/null 2>&1 || true
 pacman -Syyuu --noconfirm --needed archiso base-devel git sudo uv python-pillow ttf-dejavu plymouth libisoburn
-id "$BUILDER" >/dev/null 2>&1 || useradd -m "$BUILDER"
+mkdir -p "$BHOME"
+id "$BUILDER" >/dev/null 2>&1 || useradd -M -d "$BHOME" "$BUILDER"
+chown -R "$BUILDER:" "$BHOME"
 echo "$BUILDER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/90-halo-builder
 chmod 0440 /etc/sudoers.d/90-halo-builder
 echo "host: $PRETTY_NAME · $(nproc) CPUs · ${free_gb} GB free in $WORK · packages: $SERVER"
@@ -89,7 +98,19 @@ echo "SAINT $COMMIT$([ "$DIRTY" -gt 0 ] && echo " + $DIRTY local change(s)") · 
 #--------------------------------------------------------------------------
 log "3/7 [halo] package repository"
 PKG="$WORK/pkgbuild"; REPOD="$WORK/repo"; AUR="$WORK/aur"
-rm -rf "$PKG" "$REPOD" "$AUR"
+REUSE=0
+if [ "$REUSE_AUR" -eq 1 ] && compgen -G "$REPOD/calamares-[0-9]*.pkg.tar.zst" >/dev/null \
+   && compgen -G "$REPOD/paru-bin-[0-9]*.pkg.tar.zst" >/dev/null; then
+  REUSE=1
+fi
+rm -rf "$PKG"
+if [ "$REUSE" -eq 1 ]; then
+  # Keep the AUR packages; ours are always rebuilt from this commit.
+  find "$REPOD" -maxdepth 1 \( -name 'saint-*' -o -name 'halo-*' -o -name 'halo.*' \) -delete
+  echo "reusing the last build's AUR packages: $(cd "$REPOD" && ls -1 calamares-[0-9]*.pkg.tar.zst paru-bin-[0-9]*.pkg.tar.zst | tr '\n' ' ')"
+else
+  rm -rf "$REPOD" "$AUR"
+fi
 mkdir -p "$PKG" "$REPOD" "$AUR"
 # What goes into /opt/saint/app: the committed tree without the phone app, tests and build outputs.
 git archive --format=tar -o "$PKG/saint-src.tar" "$TREE" -- . \
@@ -109,16 +130,24 @@ chown -R "$BUILDER:" "$PKG" "$REPOD" "$AUR"
 
 # From the AUR: paru (prebuilt binary package), then calamares and whatever it needs from the AUR,
 # built by paru. Every PKGBUILD's commit is recorded in dist/AUR_COMMITS.
-as_builder git clone --quiet https://aur.archlinux.org/paru-bin.git "$AUR/paru-bin"
-(cd "$AUR/paru-bin" && as_builder makepkg -si --noconfirm --cleanbuild) || die "paru-bin didn't build"
-as_builder paru -S --noconfirm --needed --skipreview calamares \
-  || die "calamares (AUR) didn't build"
-{
-  echo "paru-bin $(git -C "$AUR/paru-bin" rev-parse HEAD)"
-  for d in "/home/$BUILDER/.cache/paru/clone"/*/; do
-    [ -d "$d/.git" ] && echo "$(basename "$d") $(git -C "$d" rev-parse HEAD)"
-  done
-} > "$WORK/AUR_COMMITS"
+if [ "$REUSE" -eq 0 ]; then
+  rm -rf "$BHOME/.cache/paru"
+  as_builder git clone --quiet https://aur.archlinux.org/paru-bin.git "$AUR/paru-bin"
+  (cd "$AUR/paru-bin" && as_builder makepkg -si --noconfirm --cleanbuild) || die "paru-bin didn't build"
+  as_builder paru -S --noconfirm --needed --skipreview calamares \
+    || die "calamares (AUR) didn't build"
+  {
+    echo "paru-bin $(aur_commit "$AUR/paru-bin")"
+    for d in "$BHOME/.cache/paru/clone"/*/; do
+      [ -d "$d/.git" ] && echo "$(basename "$d") $(aur_commit "$d")"
+    done
+  } > "$WORK/AUR_COMMITS"
+elif [ ! -s "$WORK/AUR_COMMITS" ]; then
+  printf 'paru-bin unrecorded\ncalamares unrecorded\n' > "$WORK/AUR_COMMITS"
+fi
+# "name commit" on every line (an older build may have left a name without its commit).
+awk 'NF { print $1, (NF > 1 ? $2 : "unrecorded") }' "$WORK/AUR_COMMITS" > "$WORK/AUR_COMMITS.tmp"
+mv "$WORK/AUR_COMMITS.tmp" "$WORK/AUR_COMMITS"
 cat "$WORK/AUR_COMMITS"
 
 mapfile -t pkgs < <(find "$REPOD" -maxdepth 1 -name '*.pkg.tar.zst' ! -name '*-debug-*' | sort)

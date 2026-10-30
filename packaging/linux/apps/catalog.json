@@ -1,48 +1,325 @@
 {
   "version": 1,
-  "about": "SAINTOS App Installer catalog. method: flatpak (Flathub id, per-user, no admin), dnf (distribution packages, one admin prompt: \"ref\" names on Fedora, \"arch\" names on Halo/Arch), npm (per-user global npm package, needs: dnf nodejs). Only ids listed here can be installed.",
-  "categories": ["Gaming", "Developer", "AI", "Web & Chat", "Media", "Creative", "Office & Utilities"],
+  "about": "SAINT Store featured apps (also the App Installer list). method: flatpak (Flathub id, per-user, no admin), dnf (distribution packages, one admin prompt: \"ref\" names on Fedora, \"arch\" names on Halo/Arch), aur (AUR package built by paru as you, one admin prompt to install; Halo only), npm (per-user global npm package, needs: nodejs). Only ids listed here can be installed from this list.",
+  "categories": [
+    "Gaming",
+    "Developer",
+    "AI",
+    "Web & Chat",
+    "Media",
+    "Creative",
+    "Office & Utilities"
+  ],
   "apps": [
-    {"id": "steam", "name": "Steam", "category": "Gaming", "method": "flatpak", "ref": "com.valvesoftware.Steam", "about": "Valve's game store and launcher (Proton runs Windows games)"},
-    {"id": "heroic", "name": "Heroic Games Launcher", "category": "Gaming", "method": "flatpak", "ref": "com.heroicgameslauncher.hgl", "about": "Epic, GOG and Amazon games"},
-    {"id": "lutris", "name": "Lutris", "category": "Gaming", "method": "flatpak", "ref": "net.lutris.Lutris", "about": "One place for games from many stores"},
-    {"id": "prismlauncher", "name": "Prism Launcher", "category": "Gaming", "method": "flatpak", "ref": "org.prismlauncher.PrismLauncher", "about": "Minecraft launcher"},
-    {"id": "protonup", "name": "ProtonUp-Qt", "category": "Gaming", "method": "flatpak", "ref": "net.davidotek.pupgui2", "about": "Install Proton-GE / Wine-GE"},
-    {"id": "bottles", "name": "Bottles", "category": "Gaming", "method": "flatpak", "ref": "com.usebottles.bottles", "about": "Run Windows apps with Wine"},
-
-    {"id": "claude-code", "name": "Claude Code", "category": "AI", "method": "npm", "ref": "@anthropic-ai/claude-code", "needs": ["nodejs"], "about": "Anthropic's coding agent in the terminal (command: claude)"},
-    {"id": "ollama", "name": "Ollama", "category": "AI", "method": "dnf", "ref": "ollama", "arch": "ollama", "about": "Run local language models for SAINT (no model is downloaded)"},
-
-    {"id": "vscode", "name": "Visual Studio Code", "category": "Developer", "method": "flatpak", "ref": "com.visualstudio.code", "about": "Microsoft's code editor"},
-    {"id": "github-desktop", "name": "GitHub Desktop", "category": "Developer", "method": "flatpak", "ref": "io.github.shiftey.Desktop", "about": "Git with a GUI"},
-    {"id": "pycharm", "name": "PyCharm Community", "category": "Developer", "method": "flatpak", "ref": "com.jetbrains.PyCharm-Community", "about": "Python IDE"},
-    {"id": "dev-tools", "name": "Developer tools", "category": "Developer", "method": "dnf", "ref": "git gcc gcc-c++ make cmake nodejs python3-pip podman gh", "arch": "git gcc make cmake nodejs npm python-pip podman github-cli", "about": "git, compilers, Node.js, pip, Podman, GitHub CLI"},
-    {"id": "terminal-tools", "name": "Terminal tools", "category": "Developer", "method": "dnf", "ref": "btop fastfetch neovim ripgrep fzf", "arch": "btop fastfetch neovim ripgrep fzf", "about": "btop, fastfetch, Neovim, ripgrep, fzf"},
-
-    {"id": "chrome", "name": "Google Chrome", "category": "Web & Chat", "method": "flatpak", "ref": "com.google.Chrome", "about": "Google's browser (Firefox is already installed)"},
-    {"id": "brave", "name": "Brave", "category": "Web & Chat", "method": "flatpak", "ref": "com.brave.Browser", "about": "Privacy-focused browser"},
-    {"id": "discord", "name": "Discord", "category": "Web & Chat", "method": "flatpak", "ref": "com.discordapp.Discord", "about": "Voice and text chat"},
-    {"id": "slack", "name": "Slack", "category": "Web & Chat", "method": "flatpak", "ref": "com.slack.Slack", "about": "Team chat"},
-    {"id": "zoom", "name": "Zoom", "category": "Web & Chat", "method": "flatpak", "ref": "us.zoom.Zoom", "about": "Video meetings"},
-    {"id": "telegram", "name": "Telegram", "category": "Web & Chat", "method": "flatpak", "ref": "org.telegram.desktop", "about": "Messaging"},
-    {"id": "signal", "name": "Signal", "category": "Web & Chat", "method": "flatpak", "ref": "org.signal.Signal", "about": "Private messaging"},
-    {"id": "thunderbird", "name": "Thunderbird", "category": "Web & Chat", "method": "flatpak", "ref": "org.mozilla.Thunderbird", "about": "Email"},
-
-    {"id": "spotify", "name": "Spotify", "category": "Media", "method": "flatpak", "ref": "com.spotify.Client", "about": "Music (SAINT can control it)"},
-    {"id": "vlc", "name": "VLC", "category": "Media", "method": "flatpak", "ref": "org.videolan.VLC", "about": "Plays any video or audio file"},
-    {"id": "obs", "name": "OBS Studio", "category": "Media", "method": "flatpak", "ref": "com.obsproject.Studio", "about": "Recording and streaming"},
-    {"id": "audacity", "name": "Audacity", "category": "Media", "method": "flatpak", "ref": "org.audacityteam.Audacity", "about": "Audio editor"},
-
-    {"id": "gimp", "name": "GIMP", "category": "Creative", "method": "flatpak", "ref": "org.gimp.GIMP", "about": "Image editor"},
-    {"id": "krita", "name": "Krita", "category": "Creative", "method": "flatpak", "ref": "org.kde.krita", "about": "Digital painting"},
-    {"id": "inkscape", "name": "Inkscape", "category": "Creative", "method": "flatpak", "ref": "org.inkscape.Inkscape", "about": "Vector graphics"},
-    {"id": "kdenlive", "name": "Kdenlive", "category": "Creative", "method": "flatpak", "ref": "org.kde.kdenlive", "about": "Video editor"},
-    {"id": "blender", "name": "Blender", "category": "Creative", "method": "flatpak", "ref": "org.blender.Blender", "about": "3D creation"},
-
-    {"id": "libreoffice", "name": "LibreOffice", "category": "Office & Utilities", "method": "flatpak", "ref": "org.libreoffice.LibreOffice", "about": "Documents, spreadsheets, slides"},
-    {"id": "obsidian", "name": "Obsidian", "category": "Office & Utilities", "method": "flatpak", "ref": "md.obsidian.Obsidian", "about": "Notes"},
-    {"id": "bitwarden", "name": "Bitwarden", "category": "Office & Utilities", "method": "flatpak", "ref": "com.bitwarden.desktop", "about": "Password manager"},
-    {"id": "qbittorrent", "name": "qBittorrent", "category": "Office & Utilities", "method": "flatpak", "ref": "org.qbittorrent.qBittorrent", "about": "Torrent client"},
-    {"id": "flatseal", "name": "Flatseal", "category": "Office & Utilities", "method": "flatpak", "ref": "com.github.tchx84.Flatseal", "about": "Manage Flatpak app permissions"}
+    {
+      "id": "steam",
+      "name": "Steam",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "com.valvesoftware.Steam",
+      "about": "Valve's game store and launcher (Proton runs Windows games)"
+    },
+    {
+      "id": "heroic",
+      "name": "Heroic Games Launcher",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "com.heroicgameslauncher.hgl",
+      "about": "Epic, GOG and Amazon games"
+    },
+    {
+      "id": "lutris",
+      "name": "Lutris",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "net.lutris.Lutris",
+      "about": "One place for games from many stores"
+    },
+    {
+      "id": "prismlauncher",
+      "name": "Prism Launcher",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "org.prismlauncher.PrismLauncher",
+      "about": "Minecraft launcher"
+    },
+    {
+      "id": "protonup",
+      "name": "ProtonUp-Qt",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "net.davidotek.pupgui2",
+      "about": "Install Proton-GE / Wine-GE"
+    },
+    {
+      "id": "bottles",
+      "name": "Bottles",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "com.usebottles.bottles",
+      "about": "Run Windows apps with Wine"
+    },
+    {
+      "id": "roblox",
+      "name": "Roblox",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "org.vinegarhq.Sober",
+      "about": "Play Roblox (Sober runs Roblox's Android app; community-made, not from Roblox)"
+    },
+    {
+      "id": "roblox-studio",
+      "name": "Roblox Studio",
+      "category": "Gaming",
+      "method": "flatpak",
+      "ref": "org.vinegarhq.Vinegar",
+      "about": "Make Roblox games (Vinegar runs Studio with Wine; community-made, not from Roblox)"
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "category": "AI",
+      "method": "npm",
+      "ref": "@anthropic-ai/claude-code",
+      "needs": [
+        "nodejs"
+      ],
+      "about": "Anthropic's coding agent in the terminal (command: claude)"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "category": "AI",
+      "method": "dnf",
+      "ref": "ollama",
+      "arch": "ollama",
+      "about": "Run local language models for SAINT (no model is downloaded)"
+    },
+    {
+      "id": "vscode",
+      "name": "Visual Studio Code",
+      "category": "Developer",
+      "method": "aur",
+      "ref": "visual-studio-code-bin",
+      "about": "Microsoft's code editor (Microsoft's build from the AUR: marketplace, Copilot, Claude)"
+    },
+    {
+      "id": "github-desktop",
+      "name": "GitHub Desktop",
+      "category": "Developer",
+      "method": "flatpak",
+      "ref": "io.github.shiftey.Desktop",
+      "about": "Git with a GUI"
+    },
+    {
+      "id": "pycharm",
+      "name": "PyCharm Community",
+      "category": "Developer",
+      "method": "flatpak",
+      "ref": "com.jetbrains.PyCharm-Community",
+      "about": "Python IDE"
+    },
+    {
+      "id": "dev-tools",
+      "name": "Developer tools",
+      "category": "Developer",
+      "method": "dnf",
+      "ref": "git gcc gcc-c++ make cmake nodejs python3-pip podman gh",
+      "arch": "git gcc make cmake nodejs npm python-pip podman github-cli",
+      "about": "git, compilers, Node.js, pip, Podman, GitHub CLI"
+    },
+    {
+      "id": "terminal-tools",
+      "name": "Terminal tools",
+      "category": "Developer",
+      "method": "dnf",
+      "ref": "btop fastfetch neovim ripgrep fzf",
+      "arch": "btop fastfetch neovim ripgrep fzf",
+      "about": "btop, fastfetch, Neovim, ripgrep, fzf"
+    },
+    {
+      "id": "chrome",
+      "name": "Google Chrome",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "com.google.Chrome",
+      "about": "Google's browser (Firefox is already installed)"
+    },
+    {
+      "id": "brave",
+      "name": "Brave",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "com.brave.Browser",
+      "about": "Privacy-focused browser"
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "com.discordapp.Discord",
+      "about": "Voice and text chat"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "com.slack.Slack",
+      "about": "Team chat"
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "us.zoom.Zoom",
+      "about": "Video meetings"
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "org.telegram.desktop",
+      "about": "Messaging"
+    },
+    {
+      "id": "signal",
+      "name": "Signal",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "org.signal.Signal",
+      "about": "Private messaging"
+    },
+    {
+      "id": "thunderbird",
+      "name": "Thunderbird",
+      "category": "Web & Chat",
+      "method": "flatpak",
+      "ref": "org.mozilla.Thunderbird",
+      "about": "Email"
+    },
+    {
+      "id": "spotify",
+      "name": "Spotify",
+      "category": "Media",
+      "method": "flatpak",
+      "ref": "com.spotify.Client",
+      "about": "Music (SAINT can control it)"
+    },
+    {
+      "id": "vlc",
+      "name": "VLC",
+      "category": "Media",
+      "method": "flatpak",
+      "ref": "org.videolan.VLC",
+      "about": "Plays any video or audio file"
+    },
+    {
+      "id": "obs",
+      "name": "OBS Studio",
+      "category": "Media",
+      "method": "flatpak",
+      "ref": "com.obsproject.Studio",
+      "about": "Recording and streaming"
+    },
+    {
+      "id": "audacity",
+      "name": "Audacity",
+      "category": "Media",
+      "method": "flatpak",
+      "ref": "org.audacityteam.Audacity",
+      "about": "Audio editor"
+    },
+    {
+      "id": "gimp",
+      "name": "GIMP",
+      "category": "Creative",
+      "method": "flatpak",
+      "ref": "org.gimp.GIMP",
+      "about": "Image editor"
+    },
+    {
+      "id": "krita",
+      "name": "Krita",
+      "category": "Creative",
+      "method": "flatpak",
+      "ref": "org.kde.krita",
+      "about": "Digital painting"
+    },
+    {
+      "id": "inkscape",
+      "name": "Inkscape",
+      "category": "Creative",
+      "method": "flatpak",
+      "ref": "org.inkscape.Inkscape",
+      "about": "Vector graphics"
+    },
+    {
+      "id": "kdenlive",
+      "name": "Kdenlive",
+      "category": "Creative",
+      "method": "flatpak",
+      "ref": "org.kde.kdenlive",
+      "about": "Video editor"
+    },
+    {
+      "id": "blender",
+      "name": "Blender",
+      "category": "Creative",
+      "method": "flatpak",
+      "ref": "org.blender.Blender",
+      "about": "3D creation"
+    },
+    {
+      "id": "libreoffice",
+      "name": "LibreOffice",
+      "category": "Office & Utilities",
+      "method": "flatpak",
+      "ref": "org.libreoffice.LibreOffice",
+      "about": "Documents, spreadsheets, slides"
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian",
+      "category": "Office & Utilities",
+      "method": "flatpak",
+      "ref": "md.obsidian.Obsidian",
+      "about": "Notes"
+    },
+    {
+      "id": "bitwarden",
+      "name": "Bitwarden",
+      "category": "Office & Utilities",
+      "method": "flatpak",
+      "ref": "com.bitwarden.desktop",
+      "about": "Password manager"
+    },
+    {
+      "id": "teamviewer",
+      "name": "TeamViewer",
+      "category": "Office & Utilities",
+      "method": "aur",
+      "ref": "teamviewer",
+      "about": "Remote access to this PC from your phone (needs a TeamViewer account)"
+    },
+    {
+      "id": "qbittorrent",
+      "name": "qBittorrent",
+      "category": "Office & Utilities",
+      "method": "flatpak",
+      "ref": "org.qbittorrent.qBittorrent",
+      "about": "Torrent client"
+    },
+    {
+      "id": "flatseal",
+      "name": "Flatseal",
+      "category": "Office & Utilities",
+      "method": "flatpak",
+      "ref": "com.github.tchx84.Flatseal",
+      "about": "Manage Flatpak app permissions"
+    }
   ]
 }

@@ -1,5 +1,14 @@
 #!/usr/bin/bash
-# SAINTOS Control Center (ui/saintos_center.py): SAINT's service, AI, voice, permissions, data, diagnostics.
+# The SAINTOS Control Center is now SAINT's Halo page (one SAINT app). Kept so old shortcuts and
+# muscle memory still work:  saintos-control [--welcome] [--page NAME]
 set -euo pipefail
-cd /opt/saint/app
-exec /opt/saint/venv/bin/python -m ui.saintos_center "$@"
+page=Welcome
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --welcome) page=Welcome; shift ;;
+    --page) page="${2:-Welcome}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+case "$page" in [Aa]pps) page=Store ;; esac
+exec /usr/bin/saint --page "$page"

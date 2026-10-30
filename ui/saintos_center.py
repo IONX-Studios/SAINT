@@ -224,7 +224,24 @@ def run_selftest() -> Dict:
 # --------------------------------------------------------------------------- #
 # Window
 # --------------------------------------------------------------------------- #
-PAGES = ["Welcome", "Apps", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics", "Updates"]
+PAGES = ["Welcome", "Apps", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics",
+         "Desktop & devices", "Recovery", "Updates"]
+
+# Plasma's own settings pages (kcmshell6 <module>), the ones people change most.
+KCMS = [("Wi-Fi & network", "kcm_networkmanagement"), ("Bluetooth", "kcm_bluetooth"), ("Displays", "kcm_kscreen"),
+        ("Sound", "kcm_pulseaudio"), ("Notifications", "kcm_notifications"), ("Power", "kcm_powerdevilprofilesconfig"),
+        ("Keyboard shortcuts", "kcm_keys"), ("Users", "kcm_users"), ("Region & language", "kcm_regionandlang"),
+        ("Colours & theme", "kcm_lookandfeel"), ("Window effects", "kcm_kwin_effects"), ("Virtual desktops", "kcm_kwin_virtualdesktops"),
+        ("Default apps", "kcm_componentchooser"), ("Date & time", "kcm_clock"), ("All settings", "")]
+
+
+def open_kcm(kcm: str) -> str:
+    """Open one of Plasma's settings pages ("" = all of System Settings). Returns an error message or ""."""
+    cmd = ["kcmshell6", kcm] if kcm else ["systemsettings"]
+    if not shutil.which(cmd[0]):
+        return "Plasma's settings aren't installed here."
+    subprocess.Popen(cmd, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return ""
 
 
 def build_window(start_page: str = "Welcome"):
@@ -632,6 +649,80 @@ def build_window(start_page: str = "Welcome"):
     drow.addStretch(1)
     v.addLayout(drow)
     v.addWidget(out, 1)
+    stack.addWidget(w)
+
+    # ---------------- Desktop & devices: the everyday settings, each opening KDE's own page for it
+    w, v = page("Desktop & devices", "The settings people change most. Each opens Plasma's own settings page; "
+                                      "everything else is in All settings.")
+    grid = QWidget()
+    from PySide6.QtWidgets import QGridLayout
+    g = QGridLayout(grid)
+    g.setSpacing(8)
+    kmsg = QLabel("")
+    for n, (label, kcm) in enumerate(KCMS):
+        b = QPushButton(label)
+        b.clicked.connect(lambda _=False, k=kcm, t=label: kmsg.setText(open_kcm(k) or f"{t} opened."))
+        g.addWidget(b, n // 3, n % 3)
+    v.addWidget(grid)
+    v.addWidget(kmsg)
+    v.addStretch(1)
+    stack.addWidget(w)
+
+    # ---------------- Recovery
+    from core import recovery
+    w, v = page("Recovery", "Get into your PC's firmware settings, start Windows once, or go back to a snapshot.")
+    rmsg = QLabel("")
+    rmsg.setWordWrap(True)
+
+    def run_cmds(cmds, done_text):
+        def work():
+            for c in cmds:
+                res = subprocess.run(c, capture_output=True, text=True)
+                if res.returncode != 0:
+                    return f"Didn't work: {(res.stderr or res.stdout).strip()[:200] or ' '.join(c)}"
+            return done_text
+        in_background(work, lambda r: rmsg.setText(str(r)))
+
+    fw = QPushButton("Restart into UEFI firmware settings")
+    if not recovery.firmware_setup_supported():
+        fw.setEnabled(False)
+        fw.setToolTip("This PC's firmware doesn't support it (or it started in legacy BIOS mode).")
+    fw.clicked.connect(lambda: run_cmds([recovery.REBOOT_TO_FIRMWARE], "Restarting into the firmware settings…"))
+    v.addWidget(fw, 0, Qt.AlignLeft)
+    v.addWidget(QLabel("Start another system once (the normal start order comes back after that):"))
+    boot_box = QVBoxLayout()
+    v.addLayout(boot_box)
+
+    def fill_boot(entries):
+        for e in entries if isinstance(entries, list) else []:
+            if e.current:
+                continue
+            b = QPushButton(f"Restart into {e.label}")
+            b.clicked.connect(lambda _=False, ent=e: run_cmds(recovery.boot_once(ent), f"Restarting into {ent.label}…"))
+            boot_box.addWidget(b, 0, Qt.AlignLeft)
+        if not boot_box.count():
+            boot_box.addWidget(QLabel("No other system found on this PC."))
+    in_background(recovery.boot_entries, fill_boot)
+    v.addWidget(QLabel("Snapshots (taken before every app install and update; start an older one from the "
+                       "GRUB menu's “Halo snapshots” if an update goes wrong):"))
+    snap_list = QListWidget()
+    snap_list.setMaximumHeight(160)
+    v.addWidget(snap_list)
+
+    def fill_snaps(snaps):
+        snap_list.clear()
+        if not isinstance(snaps, list):
+            snap_list.addItem("Snapshots aren't set up on this system (they need Halo installed on Btrfs).")
+            return
+        for s in snaps[:50]:
+            snap_list.addItem(f"#{s.number}  {s.date}  {s.description}")
+    in_background(recovery.snapshots, fill_snaps)
+    take = QPushButton("Take a snapshot now")
+    take.clicked.connect(lambda: (run_cmds([recovery.snapshot_now("Taken in SAINT")], "Snapshot taken."),
+                                  in_background(recovery.snapshots, fill_snaps)))
+    v.addWidget(take, 0, Qt.AlignLeft)
+    v.addWidget(rmsg)
+    v.addStretch(1)
     stack.addWidget(w)
 
     # ---------------- Updates

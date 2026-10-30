@@ -5,6 +5,7 @@ Operation = Upgrade
 Target = usr/lib/os-release
 Target = etc/plymouth/plymouthd.conf
 Target = usr/lib/halo/os-release
+Target = etc/pacman.conf
 
 [Action]
 Description = Applying Halo branding (os-release, boot splash)...

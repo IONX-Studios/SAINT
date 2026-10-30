@@ -41,6 +41,12 @@ grub
 efibootmgr
 os-prober
 
+# Snapshots (SAINT's Recovery page): one before and after every package change, bootable from GRUB
+snapper
+snap-pac
+grub-btrfs
+inotify-tools
+
 # Desktop: KDE Plasma 6 on Wayland, the parts a desktop needs
 plasma-desktop
 plasma-nm

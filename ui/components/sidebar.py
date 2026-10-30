@@ -7,6 +7,7 @@ order, is the user's (Settings › Appearance › Layout: ``layout.sidebar_hidde
 running task, connected devices). Collapsed = icons only.
 """
 
+import sys
 from typing import Dict, List, Tuple
 
 from PySide6.QtCore import QSize, Qt, Signal
@@ -29,9 +30,12 @@ PAGES: List[Tuple[str, str, str, str]] = [
     ("History", "History", "history", "Everyday"),
     ("Storage", "Storage", "drive", "PC"),
     ("System", "System", "cpu", "PC"),
+    ("Store", "Store", "download", "PC"),            # Halo/Linux only (LINUX_ONLY)
+    ("Halo", "Halo", "halo", "PC"),
     ("Settings", "Settings", "settings", ""),
 ]
 FIXED = ("Overview", "Settings")
+LINUX_ONLY = {"Store", "Halo"}                      # the app store and the OS pages are Halo's
 
 
 def ordered_pages() -> List[Tuple[str, str, str, str]]:
@@ -39,6 +43,8 @@ def ordered_pages() -> List[Tuple[str, str, str, str]]:
     order = [k for k in (config.get("layout.sidebar_order", []) or []) if any(k == p[0] for p in PAGES)]
     keys = order + [p[0] for p in PAGES if p[0] not in order]
     hidden = set(config.get("layout.sidebar_hidden", []) or []) - set(FIXED)
+    if sys.platform == "win32":
+        hidden |= LINUX_ONLY
     by_key = {p[0]: p for p in PAGES}
     pages = [by_key[k] for k in keys if k not in hidden and k != "Settings"]
     return pages + [by_key["Settings"]]

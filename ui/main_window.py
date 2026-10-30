@@ -141,6 +141,10 @@ class MainWindow(QMainWindow):
                          "Music": self.music, "Devices": DevicesPage(), "Memory": MemoryPage(),
                          "Automations": AutomationsPage(), "History": HistoryPage(), "Storage": StoragePage(),
                          "System": SystemPage(self), "Settings": self.settings_ui}
+        from ui.pages.halo_os import HaloPage
+        from ui.pages.store import StorePage
+        self.halo_page = HaloPage(self)
+        self.page_map.update({"Store": StorePage(self), "Halo": self.halo_page})
         self.pages = list(self.page_map.values())
         for page in self.pages:
             self.stack.addWidget(page)
@@ -379,7 +383,13 @@ class MainWindow(QMainWindow):
         elif cmd == "quit":
             self.quit()
         elif cmd.startswith("page:"):
-            self.open_settings(cmd[5:])
+            name = cmd[5:]
+            if name in self.halo_page.pages():           # "Recovery", "Updates", ...: the Halo page
+                self.show_normal()
+                self.navigate("Halo")
+                self.halo_page.open(name)
+            else:
+                self.open_settings(name)
         else:
             self.show_normal()
 

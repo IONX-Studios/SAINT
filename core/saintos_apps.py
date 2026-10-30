@@ -9,9 +9,11 @@ is the only source of what can be installed. A selection is turned into a short 
     1. system   one admin prompt for every distribution package (includes what npm apps need,
                 e.g. nodejs): `pkexec pacman -S --needed --noconfirm ...` on Halo (Arch; the catalog's
                 "arch" names), `pkexec dnf install -y --skip-unavailable ...` on Fedora ("ref")
-    2. flatpak  `flatpak remote-add --user --if-not-exists flathub ...` then one
-                `flatpak install --user -y --noninteractive flathub ...` (no admin needed)
-    3. npm      `npm install -g --prefix ~/.local <package>` per app (no admin needed)
+    2. flatpak  `flatpak remote-add --user --if-not-exists flathub ...` then
+                `flatpak install --user -y --noninteractive flathub <id>` per app (no admin needed)
+    3. aur      `paru -S --needed --noconfirm --skipreview --sudo pkexec <package>` per app (Halo): built
+                as you, one admin prompt to install it
+    4. npm      `npm install -g --prefix ~/.local <package>` per app (no admin needed)
 
 Every step is an argument list (no shell). Package names and Flatpak ids come from the catalog
 and are checked against a strict pattern, so nothing a user or a model types reaches a command.
@@ -39,7 +41,7 @@ _CATALOG_PATHS = [Path("/usr/share/saintos/apps.json"),
 _SAFE_DNF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 _SAFE_FLATPAK = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$")
 _SAFE_NPM = re.compile(r"^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$")
-METHODS = ("dnf", "flatpak", "npm")
+METHODS = ("dnf", "flatpak", "npm", "aur")
 # What an npm app's "needs" are called on Arch (npm is its own package there).
 _ARCH_NEEDS = {"nodejs": ["nodejs", "npm"]}
 
@@ -97,7 +99,7 @@ def load_catalog(path: Optional[Path] = None) -> Dict[str, App]:
 def validate(app: App):
     if app.method not in METHODS:
         raise ValueError(f"{app.id}: unknown install method {app.method!r}")
-    pattern = {"dnf": _SAFE_DNF, "flatpak": _SAFE_FLATPAK, "npm": _SAFE_NPM}[app.method]
+    pattern = {"dnf": _SAFE_DNF, "flatpak": _SAFE_FLATPAK, "npm": _SAFE_NPM, "aur": _SAFE_DNF}[app.method]
     for ref in app.refs:
         if not pattern.match(ref):
             raise ValueError(f"{app.id}: unsafe {app.method} reference {ref!r}")
@@ -128,7 +130,7 @@ def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] =
     if sys_pkgs:
         pkgs = list(dict.fromkeys(sys_pkgs))
         if manager == "pacman":
-            label, argv = "Arch packages: ", ["pkexec", "pacman", "-S", "--needed", "--noconfirm", *pkgs]
+            label, argv = "Arch packages: ", ["pkexec", "pacman", "-Syu", "--needed", "--noconfirm", *pkgs]
         else:
             label, argv = "Fedora packages: ", ["pkexec", "dnf", "install", "-y", "--skip-unavailable", *pkgs]
         steps.append(Step(label + ", ".join(pkgs), argv, sys_apps or [a.id for a in apps if a.needs],
@@ -141,6 +143,11 @@ def plan(selected: Iterable[str], catalog: Dict[str, App], home: Optional[str] =
         for a in flat:
             steps.append(Step(f"{a.name} (Flathub)", ["flatpak", "install", "--user", "-y", "--noninteractive",
                                                       "flathub", a.ref], [a.id]))
+    for a in apps:
+        if a.method == "aur":
+            # paru builds it as you (never as root) and asks once, through pkexec, to install the result.
+            steps.append(Step(f"{a.name} (AUR)", ["paru", "-S", "--needed", "--noconfirm", "--skipreview",
+                                                  "--sudo", "pkexec", a.ref], [a.id], needs_admin=True))
     for a in apps:
         if a.method == "npm":
             steps.append(Step(f"{a.name} (npm, into ~/.local)",
@@ -167,6 +174,8 @@ def installed(app: App, run: Callable = subprocess.run, manager: Optional[str] =
             manager = manager or system_manager()
             query = ["pacman", "-Q"] if manager == "pacman" else ["rpm", "-q"]
             return run([*query, *app.system_refs(manager)], capture_output=True).returncode == 0
+        if app.method == "aur":
+            return run(["pacman", "-Q", app.ref], capture_output=True).returncode == 0
         if app.method == "npm":
             return (Path.home() / ".local" / "lib" / "node_modules" / app.ref).exists()
     except OSError:
@@ -227,10 +236,11 @@ def run_plan(steps: List[Step], on_line: Callable[[str], None] = print,
     return result
 
 
-def summary(result: Dict[str, bool], catalog: Dict[str, App]) -> Tuple[str, str]:
+def summary(result: Dict[str, bool], catalog: Dict[str, App], names: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
     """The notification after an install: (title, body) naming every app installed and every one that failed."""
-    ok = [catalog[i].name for i, good in result.items() if good and i in catalog]
-    bad = [catalog[i].name for i, good in result.items() if not good and i in catalog]
+    names = {**{i: a.name for i, a in catalog.items()}, **(names or {})}    # Store results aren't all in the catalog
+    ok = [names[i] for i, good in result.items() if good and i in names]
+    bad = [names[i] for i, good in result.items() if not good and i in names]
     if ok and not bad:
         title = f"Installed {len(ok)} app{'s' if len(ok) != 1 else ''}"
     elif ok:
@@ -241,11 +251,11 @@ def summary(result: Dict[str, bool], catalog: Dict[str, App]) -> Tuple[str, str]
     return title, body or "No apps were selected."
 
 
-def finish(result: Dict[str, bool], catalog: Dict[str, App], run: Callable = subprocess.run,
+def finish(result: Dict[str, bool], catalog: Dict[str, App], run: Callable = subprocess.run, names=None,
            which: Callable[[str], Optional[str]] = shutil.which) -> Tuple[str, str]:
     """After an install: rebuild the app menu so new apps show up without logging out, and say what was
     installed in a desktop notification (Linux). Returns the notification's (title, body)."""
-    title, body = summary(result, catalog)
+    title, body = summary(result, catalog, names)
     quiet = dict(capture_output=True, timeout=60)
     for cmd in (["kbuildsycoca6"], ["update-desktop-database", os.path.expanduser("~/.local/share/applications")]):
         if which(cmd[0]):

@@ -80,7 +80,7 @@ def test_halo_installs_distribution_packages_with_pacman(catalog):
     steps = sa.plan(["claude-code", "dev-tools", "ollama", "steam"], catalog, home="/home/me", manager="pacman")
     argvs = [s.argv for s in steps]
     pac = [a for a in argvs if a[:2] == ["pkexec", "pacman"]]
-    assert len(pac) == 1 and pac[0][:5] == ["pkexec", "pacman", "-S", "--needed", "--noconfirm"]
+    assert len(pac) == 1 and pac[0][:5] == ["pkexec", "pacman", "-Syu", "--needed", "--noconfirm"]
     for pkg in ("nodejs", "npm", "github-cli", "python-pip", "ollama"):
         assert pac[0].count(pkg) == 1, pkg
     assert "gh" not in pac[0] and "gcc-c++" not in pac[0]          # Fedora names never reach pacman
@@ -147,3 +147,16 @@ def test_finish_refreshes_the_menu_and_lists_what_was_installed(catalog):
     assert body.splitlines() == ["✓ Steam", "✓ Visual Studio Code", "✗ Discord"]
     assert calls[0] == ["kbuildsycoca6"]                       # new apps show in the menu without logging out
     assert calls[-1][:3] == ["notify-send", "--app-name=SAINT", "--icon=saint"] and calls[-1][-1] == body
+
+
+def test_store_favourites_roblox_studio_vscode_blender(catalog):
+    assert catalog["roblox"].ref == "org.vinegarhq.Sober" and catalog["roblox"].method == "flatpak"
+    assert catalog["roblox-studio"].ref == "org.vinegarhq.Vinegar"
+    assert "not from Roblox" in catalog["roblox"].about and "not from Roblox" in catalog["roblox-studio"].about
+    assert catalog["vscode"].method == "aur" and catalog["vscode"].ref == "visual-studio-code-bin"
+    assert catalog["blender"].method == "flatpak"
+    steps = sa.plan(["vscode", "teamviewer"], catalog, manager="pacman")
+    aur = [s.argv for s in steps if s.argv[0] == "paru"]
+    assert aur == [["paru", "-S", "--needed", "--noconfirm", "--skipreview", "--sudo", "pkexec", "visual-studio-code-bin"],
+                   ["paru", "-S", "--needed", "--noconfirm", "--skipreview", "--sudo", "pkexec", "teamviewer"]]
+    assert sa.missing_tools(steps, which=lambda t: None) == ["paru"]

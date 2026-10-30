@@ -31,6 +31,25 @@ grep -q '^Server' /etc/pacman.d/mirrorlist 2>/dev/null \
   || echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> /etc/pacman.d/mirrorlist
 pacman-key --init >/dev/null 2>&1 && pacman-key --populate archlinux >/dev/null 2>&1 || log "pacman keyring setup failed"
 
+# Snapshots for SAINT's Recovery page: snapper on the Btrfs root, using the @snapshots subvolume the
+# installer mounted at /.snapshots; snap-pac snapshots every package change, grub-btrfs lists them in GRUB.
+if [ "$(findmnt -no FSTYPE /)" = btrfs ] && command -v snapper >/dev/null; then
+  umount /.snapshots 2>/dev/null
+  rm -rf /.snapshots
+  if snapper --no-dbus -c root create-config /; then
+    btrfs subvolume delete /.snapshots >/dev/null 2>&1
+    mkdir -p /.snapshots
+    mount /.snapshots 2>/dev/null || log "couldn't mount @snapshots"
+    chmod 750 /.snapshots
+    sed -i -e 's/^ALLOW_GROUPS=.*/ALLOW_GROUPS="wheel"/' -e 's/^SYNC_ACL=.*/SYNC_ACL="yes"/' \
+           -e 's/^TIMELINE_CREATE=.*/TIMELINE_CREATE="no"/' -e 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="20"/' \
+           /etc/snapper/configs/root
+    systemctl enable snapper-cleanup.timer grub-btrfsd.service 2>/dev/null
+  else
+    log "snapper setup failed; snapshots stay off"
+  fi
+fi
+
 # The live ISO's tools. Last: this removes the package this script came from (it keeps running).
 pacman -Rns --noconfirm mkinitcpio-archiso halo-calamares-config calamares >/dev/null 2>&1 || log "removing live packages failed"
 exit 0

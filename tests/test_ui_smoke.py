@@ -32,12 +32,16 @@ def _pump(app, secs):
 
 
 def test_every_page_opens(window):
+    import sys
+    from ui.components.sidebar import LINUX_ONLY
     from ui.main_window import PAGES
     app, w = window
     for key, *_rest in PAGES:
         w.navigate(key, animate=False)
         _pump(app, 0.05)
-        assert w.stack.currentWidget() is w.page_map[key] and w.sidebar.current() == key
+        assert w.stack.currentWidget() is w.page_map[key]
+        # The Store and Halo pages are Halo's: on Windows they open (by command) but aren't in the sidebar.
+        assert w.sidebar.current() == key or (sys.platform == "win32" and key in LINUX_ONLY)
     w.navigate("Home", animate=False)                       # the old name still works (voice, demo)
     assert w.stack.currentWidget() is w.overview
 

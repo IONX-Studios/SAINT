@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "KWin/Script",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Description": "Places SAINT's Halo and overlay on Wayland, keeps them off the taskbar, and opens SAINT from the top screen edge",
+        "EnabledByDefault": true,
+        "Id": "saint-shell",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINT shell",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

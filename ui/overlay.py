@@ -19,7 +19,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButto
 
 from core.config import config
 from core.events import EventType
-from ui import actions, icons, motion
+from ui import actions, icons, motion, placement
 from ui.pages.music import NowPlaying
 from ui.reactive import ui_bus
 from ui.theme import current_palette, state_color, state_word
@@ -461,6 +461,7 @@ class Overlay(QWidget):
         geo = screen.geometry()
         self._bg = frost(screen.grabWindow(0), geo.size())
         self.setGeometry(geo)
+        placement.wayland_place(self, geo, "SAINT overlay")
         self._closing = False
         self.apply_theme()
         self._render_state(ui_bus.state)

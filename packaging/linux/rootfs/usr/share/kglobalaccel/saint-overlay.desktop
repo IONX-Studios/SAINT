@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SAINT overlay
+Comment=Open or close SAINT's overlay from anywhere
+Exec=/usr/bin/saint --toggle-overlay
+Icon=saint
+NoDisplay=true
+X-KDE-Shortcuts=Alt+`

@@ -24,6 +24,19 @@ from core.config import config
 log = logging.getLogger("saint.ui.placement")
 
 
+def on_wayland() -> bool:
+    return QGuiApplication.platformName().startswith("wayland")
+
+
+def wayland_place(widget, rect: QRect, title: str):
+    """Put a SAINT helper window (Halo strips, edge tab, overlay) at ``rect`` on Wayland, where apps can't
+    place windows themselves: the SAINT shell KWin script reads the geometry from the title, places the
+    window and keeps it above and off the taskbar (packaging/linux/rootfs/usr/share/kwin/scripts/saint-shell).
+    Elsewhere move()/setGeometry() already do it and this does nothing."""
+    if on_wayland():
+        widget.setWindowTitle(f"{title} SAINT:place:{rect.x()},{rect.y()},{rect.width()},{rect.height()}")
+
+
 def screens() -> List[QScreen]:
     """Qt screens ordered like SAINT's monitor numbers (left to right, then top)."""
     return sorted(QGuiApplication.screens(), key=lambda s: (s.geometry().left(), s.geometry().top()))

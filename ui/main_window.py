@@ -7,6 +7,7 @@ global hotkey, the command palette, toasts and demo mode.
 """
 
 import logging
+import sys
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon, QKeySequence, QPainter, QPixmap,
@@ -371,6 +372,31 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def handle_command(self, cmd: str):
+        """A request from another `saint` (taskbar pin, overlay hotkey, menu) or from D-Bus (core/instance.py)."""
+        if cmd == "toggle-overlay":
+            self.toggle_overlay()
+        elif cmd == "quit":
+            self.quit()
+        elif cmd.startswith("page:"):
+            self.open_settings(cmd[5:])
+        else:
+            self.show_normal()
+
+    def current_state(self) -> dict:
+        return {**ui_bus.state, "level": ui_bus.level}
+
+    def attach_dbus(self, bus):
+        """org.saintos.Saint (core/saint_dbus.py): the wallpaper, widgets and KWin script follow SAINT's state."""
+        self._dbus = bus
+        if not bus.active:
+            return
+        def publish(ev):
+            if ev.type in (EventType.ASSISTANT_STATE, EventType.VOICE_AUDIO_LEVEL):
+                bus.publish(str(ui_bus.state.get("state", "idle")), ui_bus.level)
+        ui_bus.event.connect(publish)
+        publish(type("E", (), {"type": EventType.ASSISTANT_STATE})())
+
     def _set_theme(self, theme):
         config.set("appearance.theme", theme)
         self.settings_ui.load()
@@ -534,7 +560,8 @@ class MainWindow(QMainWindow):
 
     def _build_tray(self):
         self.tray = None
-        if not QSystemTrayIcon.isSystemTrayAvailable():
+        # One SAINT icon: on Linux SAINT lives on its taskbar pin (and the Halo), not also in the tray.
+        if not QSystemTrayIcon.isSystemTrayAvailable() or not config.get("notifications.tray_icon", sys.platform == "win32"):
             return
         self.tray = QSystemTrayIcon(QIcon(logo_pixmap(64, current_palette().accent)), self)
         menu = QMenu()
@@ -712,10 +739,13 @@ class MainWindow(QMainWindow):
             self.palette.setGeometry(self.centralWidget().rect())
 
     def closeEvent(self, event):
-        if not self._quitting and self.tray and config.get("notifications.close_to_tray", True):
+        # Halo/Linux has no tray icon by default: SAINT keeps running and the taskbar pin brings it back
+        # (core/instance.py); "Quit SAINT" is on the pin's right-click menu.
+        background = self.tray or sys.platform != "win32"
+        if not self._quitting and background and config.get("notifications.close_to_tray", True):
             event.ignore()
             self.hide()
-            if not getattr(self, "_tray_hint_shown", False):
+            if self.tray and not getattr(self, "_tray_hint_shown", False):
                 self._tray_hint_shown = True
                 self.tray.showMessage("SAINT is still running",
                                       "SAINT keeps listening for “Hey SAINT” — watch the Halo around your screen. "

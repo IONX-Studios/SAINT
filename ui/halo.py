@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from core.config import config
 from core.events import EventType
-from ui import motion
+from ui import motion, placement
 from ui.reactive import ui_bus
 from ui.theme import current_palette, state_color
 from ui.widgets import Orb, covers, with_alpha
@@ -67,6 +67,7 @@ class _Strip(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.halo, self.edge, self.screen_geo = halo, edge, screen_geo
         self.setGeometry(rect)
+        placement.wayland_place(self, rect, f"SAINT Halo {edge}")
 
     def paintEvent(self, _):
         g = QPainter(self)
@@ -366,6 +367,7 @@ class Halo(QObject):
         geo = screen.geometry()
         x = geo.center().x() - self.tab.width() // 2
         self.tab.render(ui_bus.state)
+        placement.wayland_place(self.tab, QRect(x, geo.top() + 8, self.tab.width(), self.tab.height()), "SAINT Halo tab")
         self.tab.move(x, geo.top() - self.tab.height())
         self.tab.show()
         self.tab.raise_()

@@ -103,6 +103,10 @@ def main():
     parser.add_argument("--selftest", nargs="?", const="-", default=None, metavar="REPORT.json",
                         help="check this SAINT (libraries, models, UI, voice round trip) without starting it, "
                              "write the results as JSON and exit (core/selftest.py)")
+    parser.add_argument("--toggle-overlay", action="store_true",
+                        help="open or close the overlay (the overlay hotkey runs this); starts SAINT if needed")
+    parser.add_argument("--page", default="", metavar="NAME", help="open SAINT on a page, e.g. Settings")
+    parser.add_argument("--quit", action="store_true", help="quit the running SAINT")
     args = parser.parse_args()
     if args.selftest is not None:
         from core import selftest
@@ -122,15 +126,28 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("SAINT")
     app.setApplicationDisplayName("SAINT")
+    # Wayland app id = saint.desktop: every SAINT window groups under the one pinned SAINT icon.
+    app.setDesktopFileName("saint")
     app.setQuitOnLastWindowClosed(False)   # the tray keeps SAINT alive
 
+    command = ("quit" if args.quit else "toggle-overlay" if args.toggle_overlay
+               else f"page:{args.page}" if args.page else "show")
+
     # One SAINT at a time, whichever data it uses: two would both answer the microphone.
+    from core import instance
     from core.paths import base_data_dir, profile_name
     lock = QLockFile(str(base_data_dir() / "saint.lock"))
     lock.setStaleLockTime(0)
     if not lock.tryLock(100):
+        if instance.send(command):          # the running SAINT shows itself / its overlay / the page
+            return 0
+        if args.quit:
+            return 0
         extra = f" Quit it first to start the “{profile_name()}” test profile." if profile_name() else ""
         QMessageBox.information(None, "SAINT", "SAINT is already running (check the system tray)." + extra)
+        return 0
+    if args.quit:                           # nothing running to quit
+        lock.unlock()
         return 0
 
     setup_result = run_first_run_setup()
@@ -153,7 +170,15 @@ def main():
 
     from ui.main_window import MainWindow
     window = MainWindow(app, runtime)
-    if not (args.background or config.get("notifications.start_minimized", False)):
+    server = instance.Server(app)
+    server.command.connect(window.handle_command)
+    from core.saint_dbus import SaintBus
+    window.attach_dbus(SaintBus(window.handle_command, lambda: dict(window.current_state())))
+    if args.toggle_overlay:
+        QTimer.singleShot(0, window.open_overlay)
+    elif args.page:
+        window.handle_command(f"page:{args.page}")
+    elif not (args.background or config.get("notifications.start_minimized", False)):
         window.show()
     if setup_result.get("first_run") and not setup_result.get("skipped"):
         QTimer.singleShot(800, show_setup_dialog)
@@ -165,6 +190,7 @@ def main():
                        + _migration_report["backup"]}))
 
     code = app.exec()
+    server.close()
     runtime.shutdown()
     lock.unlock()
     return code

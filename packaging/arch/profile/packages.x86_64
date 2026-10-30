@@ -41,6 +41,11 @@ grub
 efibootmgr
 os-prober
 
+# Secure Boot: Microsoft-signed shim, signing tools, MOK enrollment
+shim-signed
+sbsigntools
+mokutil
+
 # Snapshots (SAINT's Recovery page): one before and after every package change, bootable from GRUB
 snapper
 snap-pac

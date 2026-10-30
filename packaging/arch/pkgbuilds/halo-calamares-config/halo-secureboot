@@ -1,0 +1,95 @@
+#!/usr/bin/bash
+# Last installer step (Calamares shellprocess@halo-secureboot, after the boot loader is installed).
+#
+# Secure Boot on the installed system:
+#   firmware -> shim (signed by Microsoft) -> GRUB and the kernel, signed with this PC's own key (MOK).
+# The key is made here, for this PC only, and never leaves it (/etc/secureboot/halo, root-only).
+# A pacman hook signs every new kernel. On the first restart shim's MokManager asks once to enroll the
+# key: Enroll MOK -> Continue -> Yes -> password "halo".
+#
+# Then the live ISO's tools are removed (this script's own package last).
+set -u
+log() { echo "halo-secureboot: $*"; }
+SHIM=/usr/share/shim-signed
+ESP=/boot/efi
+K=/etc/secureboot/halo
+# GRUB with everything it needs built in: under shim it may not load modules from disk.
+MODULES="all_video boot btrfs cat chain configfile echo efifwsetup efinet ext2 fat font gettext gfxmenu gfxterm
+gfxterm_background gzio halt help iso9660 jpeg keystatus loadenv loopback linux ls lsefi lsefimmap lsefisystab
+memdisk minicmd normal ntfs part_apple part_msdos part_gpt password_pbkdf2 png probe reboot regexp search
+search_fs_uuid search_fs_file search_label serial sleep smbios squash4 test tpm true video xfs cryptodisk luks
+luks2 lvm mdraid09 mdraid1x"
+
+sign() { sbsign --key "$K/MOK.key" --cert "$K/MOK.crt" --output "$1" "$1" >/dev/null; }
+
+write_hook() {
+  install -d /etc/pacman.d/hooks
+  cat > /etc/pacman.d/hooks/95-halo-secureboot.hook <<'EOF'
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Signing the kernel for Secure Boot (Halo)...
+When = PostTransaction
+Exec = /usr/bin/sh -c 'for k in /boot/vmlinuz-*; do /usr/bin/sbsign --key /etc/secureboot/halo/MOK.key --cert /etc/secureboot/halo/MOK.crt --output "$k" "$k"; done'
+Depends = sbsigntools
+EOF
+}
+
+secure_boot() {
+  [ -d /sys/firmware/efi ] || { log "BIOS boot: nothing to do"; return 0; }
+  command -v sbsign >/dev/null && [ -s "$SHIM/shimx64.efi" ] || { log "shim or sbsigntools missing"; return 0; }
+  mountpoint -q "$ESP" || { log "no EFI partition at $ESP"; return 0; }
+
+  install -d -m 0700 "$K"
+  if [ ! -s "$K/MOK.key" ]; then
+    openssl req -newkey rsa:2048 -nodes -keyout "$K/MOK.key" -new -x509 -sha256 -days 36500 \
+      -subj "/CN=Halo on $(cat /etc/hostname 2>/dev/null || echo this PC)/" -out "$K/MOK.crt" 2>/dev/null
+    openssl x509 -outform DER -in "$K/MOK.crt" -out "$K/MOK.cer"
+    chmod 0600 "$K/MOK.key"
+  fi
+
+  # shellcheck disable=SC2086
+  grub-install --target=x86_64-efi --efi-directory="$ESP" --bootloader-id=Halo --modules="$(echo $MODULES)" \
+    --sbat /usr/share/grub/sbat.csv --no-nvram >/dev/null 2>&1 || { log "grub-install for shim failed"; return 0; }
+  local D="$ESP/EFI/Halo"
+  sign "$D/grubx64.efi"
+  install -m 0644 "$SHIM/shimx64.efi" "$D/shimx64.efi"
+  install -m 0644 "$SHIM/mmx64.efi" "$D/mmx64.efi"
+  # The removable-media path too (some firmware only looks there).
+  install -d "$ESP/EFI/BOOT"
+  install -m 0644 "$SHIM/shimx64.efi" "$ESP/EFI/BOOT/BOOTX64.EFI"
+  install -m 0644 "$SHIM/mmx64.efi" "$ESP/EFI/BOOT/mmx64.efi"
+  install -m 0644 "$D/grubx64.efi" "$ESP/EFI/BOOT/grubx64.efi"
+  for k in /boot/vmlinuz-*; do [ -f "$k" ] && sign "$k"; done
+
+  # Boot entry: firmware -> shim (replaces the plain GRUB entry the installer made).
+  local dev disk part
+  dev="$(findmnt -no SOURCE "$ESP")"
+  disk="/dev/$(lsblk -no PKNAME "$dev" | head -n1)"
+  part="$(cat "/sys/class/block/$(basename "$dev")/partition" 2>/dev/null)"
+  if [ -n "$part" ] && [ -b "$disk" ]; then
+    efibootmgr | sed -n 's/^Boot\([0-9A-F]\{4\}\)\*\? Halo\b.*/\1/p' | while read -r n; do efibootmgr -q -b "$n" -B; done
+    efibootmgr -q --create --disk "$disk" --part "$part" --label "Halo" --loader '\EFI\Halo\shimx64.efi' \
+      || log "couldn't add the boot entry"
+  fi
+
+  write_hook
+
+  # Ask shim to enroll the key on the next start (one-time password "halo", typed in MokManager).
+  if command -v mokutil >/dev/null; then
+    printf 'halo\nhalo\n' | mokutil --import "$K/MOK.cer" >/dev/null 2>&1 \
+      && log "key queued: on restart choose Enroll MOK -> Continue -> Yes, password: halo" \
+      || log "mokutil couldn't queue the key (Secure Boot can still be turned off in the firmware)"
+  fi
+}
+
+secure_boot
+
+# The live ISO's tools, last (this removes the package this script came from; it keeps running).
+pacman -Rns --noconfirm mkinitcpio-archiso halo-calamares-config calamares >/dev/null 2>&1 \
+  || log "removing live packages failed"
+exit 0

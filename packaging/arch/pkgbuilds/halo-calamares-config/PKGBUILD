@@ -7,14 +7,15 @@ pkgdesc="Halo installer configuration for Calamares"
 arch=(any)
 url="https://github.com/IONX-Studios/SAINT"
 license=(LicenseRef-SAINT)
-depends=(calamares halo-branding)
-source=(calamares.tar halo-cleanup install-halo.desktop)
+depends=(calamares halo-branding shim-signed sbsigntools mokutil)
+source=(calamares.tar halo-cleanup halo-secureboot install-halo.desktop)
 noextract=(calamares.tar)
-sha256sums=(SKIP SKIP SKIP)
+sha256sums=(SKIP SKIP SKIP SKIP)
 
 package() {
   install -d "$pkgdir/etc/calamares"
   tar -xf "$srcdir/calamares.tar" -C "$pkgdir/etc/calamares"
   install -Dm0755 "$srcdir/halo-cleanup" "$pkgdir/usr/lib/halo/calamares-cleanup"
+  install -Dm0755 "$srcdir/halo-secureboot" "$pkgdir/usr/lib/halo/calamares-secureboot"
   install -Dm0644 "$srcdir/install-halo.desktop" "$pkgdir/usr/share/applications/install-halo.desktop"
 }

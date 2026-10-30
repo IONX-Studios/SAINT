@@ -34,6 +34,15 @@ check "initramfs halo/boot/x86_64/initramfs-linux.img" test -s "$B/initramfs-lin
 check "root image halo/x86_64/airootfs.sfs" test -s "$MNT/halo/x86_64/airootfs.sfs"
 check "UEFI loader EFI/BOOT/BOOTx64.EFI" test -s "$MNT/EFI/BOOT/BOOTx64.EFI"
 check "BIOS loader boot/syslinux/syslinux.cfg" test -s "$MNT/boot/syslinux/syslinux.cfg"
+# Secure Boot: shim (signed by Microsoft's UEFI CA) first, then systemd-boot signed with Halo's key.
+grep -aq "UEFI SHIM" "$MNT/EFI/BOOT/BOOTx64.EFI" && grep -aqE "Microsoft Corporation UEFI CA 20(11|23)" "$MNT/EFI/BOOT/BOOTx64.EFI" \
+  && pass "Secure Boot: BOOTx64.EFI is shim signed by Microsoft" || fail "Secure Boot: BOOTx64.EFI isn't Microsoft-signed shim"
+check "Secure Boot: systemd-boot as grubx64.efi" test -s "$MNT/EFI/BOOT/grubx64.efi"
+check "Secure Boot: MokManager (mmx64.efi)" test -s "$MNT/EFI/BOOT/mmx64.efi"
+check "Secure Boot: Halo's key to enroll (HALO-MOK.cer)" test -s "$MNT/HALO-MOK.cer"
+if command -v sbverify >/dev/null; then
+  check "Secure Boot: kernel signed with Halo's key" sbverify --list "$B/vmlinuz-linux"
+fi
 entry="$MNT/loader/entries/01-halo.conf"
 if [ -f "$entry" ]; then
   grep -q 'archisobasedir=halo' "$entry" && pass "UEFI entry: archisobasedir=halo" || fail "UEFI entry: archisobasedir isn't halo"

@@ -50,6 +50,5 @@ if [ "$(findmnt -no FSTYPE /)" = btrfs ] && command -v snapper >/dev/null; then
   fi
 fi
 
-# The live ISO's tools. Last: this removes the package this script came from (it keeps running).
-pacman -Rns --noconfirm mkinitcpio-archiso halo-calamares-config calamares >/dev/null 2>&1 || log "removing live packages failed"
+# The live ISO's tools are removed at the very end (halo-secureboot), after the boot loader is set up.
 exit 0

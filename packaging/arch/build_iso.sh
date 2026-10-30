@@ -94,7 +94,8 @@ free_gb=$(df -P --block-size=1G "$WORK" | awk 'NR==2 {print $4}')
 echo "Server = $SERVER" > /etc/pacman.d/mirrorlist
 pacman-key --init >/dev/null 2>&1 || true
 pacman-key --populate archlinux >/dev/null 2>&1 || true
-pacman -Syyuu --noconfirm --needed archiso base-devel git sudo uv python-pillow ttf-dejavu plymouth libisoburn
+pacman -Syyuu --noconfirm --needed archiso base-devel git sudo uv python-pillow ttf-dejavu plymouth libisoburn \
+  sbsigntools mtools openssl
 # makepkg: no -debug split packages (nothing installs them), compile on every CPU.
 sed -i -E '/^OPTIONS=/ s/([ (])debug([ )])/\1!debug\2/' /etc/makepkg.conf
 grep -qE '^OPTIONS=.*!debug' /etc/makepkg.conf || die "couldn't turn off makepkg's debug packages"
@@ -124,20 +125,17 @@ echo "SAINT $COMMIT$([ "$DIRTY" -gt 0 ] && echo " + $DIRTY local change(s)") · 
 #--------------------------------------------------------------------------
 log "3/7 [halo] package repository"
 PKG="$WORK/pkgbuild"; REPOD="$WORK/repo"; AUR="$WORK/aur"
-REUSE=0
-if [ "$REBUILD_AUR" -eq 0 ] && compgen -G "$REPOD/calamares-[0-9]*.pkg.tar.zst" >/dev/null \
-   && compgen -G "$REPOD/paru-bin-[0-9]*.pkg.tar.zst" >/dev/null; then
-  REUSE=1
-fi
+# From the AUR (built here by paru, as the build user): the installer, and Microsoft-signed shim for
+# Secure Boot. Kept between builds; --rebuild-aur builds them again.
+AUR_PKGS=(calamares shim-signed)
+have_pkg() { compgen -G "$REPOD/$1-[0-9]*.pkg.tar.zst" >/dev/null; }
 rm -rf "$PKG"
-if [ "$REUSE" -eq 1 ]; then
-  # Keep the AUR packages; ours are always rebuilt from this commit.
-  find "$REPOD" -maxdepth 1 \( -name 'saint-*' -o -name 'halo-*' -o -name 'halo.*' -o -name '*-debug-*' \) -delete
-  echo "reusing the last build's AUR packages: $(cd "$REPOD" && ls -1 calamares-[0-9]*.pkg.tar.zst paru-bin-[0-9]*.pkg.tar.zst | tr '\n' ' ')"
-else
-  rm -rf "$REPOD" "$AUR"
+if [ "$REBUILD_AUR" -eq 1 ]; then
+  rm -rf "$REPOD" "$AUR" "$BHOME/.cache/paru" "$WORK/AUR_COMMITS"
 fi
 mkdir -p "$PKG" "$REPOD" "$AUR"
+# Ours are always rebuilt from this commit.
+find "$REPOD" -maxdepth 1 \( -name 'saint-*' -o -name 'halo-*' -o -name 'halo.*' -o -name '*-debug-*' \) -delete
 # What goes into /opt/saint/app: the committed tree without the phone app, tests and build outputs.
 git archive --format=tar -o "$PKG/saint-src.tar" "$TREE" -- . \
   ':(exclude)mobile' ':(exclude)tests' ':(exclude).github' ':(exclude)packaging/windows' ':(exclude)docs/screenshots'
@@ -156,21 +154,27 @@ chown -R "$BUILDER:" "$PKG" "$REPOD" "$AUR"
 
 # From the AUR: paru (prebuilt binary package), then calamares and whatever it needs from the AUR,
 # built by paru. Every PKGBUILD's commit is recorded in dist/AUR_COMMITS.
-if [ "$REUSE" -eq 0 ]; then
-  rm -rf "$BHOME/.cache/paru"
+if ! have_pkg paru-bin; then
+  rm -rf "$AUR/paru-bin"
   as_builder git clone --quiet https://aur.archlinux.org/paru-bin.git "$AUR/paru-bin"
-  (cd "$AUR/paru-bin" && as_builder makepkg -si --noconfirm --cleanbuild) || die "paru-bin didn't build"
-  as_builder paru -S --noconfirm --needed --skipreview calamares \
-    || die "calamares (AUR) didn't build"
-  {
-    echo "paru-bin $(aur_commit "$AUR/paru-bin")"
-    for d in "$BHOME/.cache/paru/clone"/*/; do
-      [ -d "$d/.git" ] && echo "$(basename "$d") $(aur_commit "$d")"
-    done
-  } > "$WORK/AUR_COMMITS"
-elif [ ! -s "$WORK/AUR_COMMITS" ]; then
-  printf 'paru-bin unrecorded\ncalamares unrecorded\n' > "$WORK/AUR_COMMITS"
+  (cd "$AUR/paru-bin" && as_builder makepkg --noconfirm --cleanbuild) || die "paru-bin didn't build"
 fi
+missing=()
+for p in "${AUR_PKGS[@]}"; do have_pkg "$p" || missing+=("$p"); done
+if [ ${#missing[@]} -gt 0 ]; then
+  pacman -U --noconfirm --needed "$(ls -1 "$REPOD"/paru-bin-[0-9]*.pkg.tar.zst | tail -n1)" >/dev/null
+  as_builder paru -S --noconfirm --needed --skipreview "${missing[@]}" || die "${missing[*]} (AUR) didn't build"
+else
+  echo "reusing the AUR packages built before: ${AUR_PKGS[*]} paru-bin"
+fi
+touch "$WORK/AUR_COMMITS"
+for d in "$AUR/paru-bin" "$BHOME/.cache/paru/clone"/*/; do
+  [ -d "$d/.git" ] || continue
+  name="$(basename "$d")"
+  grep -v "^$name " "$WORK/AUR_COMMITS" > "$WORK/AUR_COMMITS.tmp" || true
+  echo "$name $(aur_commit "$d")" >> "$WORK/AUR_COMMITS.tmp"
+  mv "$WORK/AUR_COMMITS.tmp" "$WORK/AUR_COMMITS"
+done
 # "name commit" on every line (an older build may have left a name without its commit).
 awk 'NF { print $1, (NF > 1 ? $2 : "unrecorded") }' "$WORK/AUR_COMMITS" > "$WORK/AUR_COMMITS.tmp"
 mv "$WORK/AUR_COMMITS.tmp" "$WORK/AUR_COMMITS"
@@ -245,9 +249,52 @@ set -e
 [ "$rc" -eq 0 ] || die "mkarchiso failed (exit $rc); log: $WORK/mkarchiso.log"
 
 #--------------------------------------------------------------------------
-log "6/7 Release files"
+log "5b/7 Secure Boot (shim + Halo's key)"
+# Firmware with Secure Boot on starts Microsoft-signed shim; shim starts systemd-boot and the kernel,
+# both signed with Halo's key (MOK). The first time, shim's MokManager asks to enroll that key once
+# ("Enroll key from disk" -> HALO-MOK.cer on the stick). Installed systems get their own per-PC key
+# (halo-calamares-config: halo-secureboot). Release builds must keep $KEYS the same across builds.
 ISO_SRC="$(ls -1 "$WORK"/out/*.iso 2>/dev/null | head -n1)"
 [ -n "$ISO_SRC" ] && [ -s "$ISO_SRC" ] || die "mkarchiso produced no ISO in $WORK/out"
+KEYS="$WORK/keys"
+if [ ! -s "$KEYS/MOK.key" ]; then
+  install -d -m 0700 "$KEYS"
+  openssl req -newkey rsa:2048 -nodes -keyout "$KEYS/MOK.key" -new -x509 -sha256 -days 3650 \
+    -subj "/CN=Halo Secure Boot/" -out "$KEYS/MOK.crt" 2>/dev/null
+  openssl x509 -outform DER -in "$KEYS/MOK.crt" -out "$KEYS/MOK.cer"
+fi
+SHIM=/usr/share/shim-signed
+pacman -U --noconfirm --needed "$(ls -1 "$REPOD"/shim-signed-[0-9]*.pkg.tar.zst | tail -n1)" >/dev/null
+[ -s "$SHIM/shimx64.efi" ] && [ -s "$SHIM/mmx64.efi" ] || die "shim-signed has no shimx64.efi/mmx64.efi in $SHIM"
+SB="$WORK/sb"
+rm -rf "$SB"; mkdir -p "$SB"
+(
+  cd "$SB"
+  xorriso -osirrox on -indev "$ISO_SRC" -extract_boot_images ./ -extract /EFI EFI \
+    -extract /halo/boot/x86_64/vmlinuz-linux vmlinuz-linux >/dev/null 2>&1
+  ESP="$(ls -1 eltorito_img*_uefi.img | head -n1)"
+  [ -n "$ESP" ] || exit 3
+  chmod -R u+w .
+  mcopy -n -i "$ESP" ::/EFI/BOOT/BOOTx64.EFI systemd-boot.efi
+  sbsign --key "$KEYS/MOK.key" --cert "$KEYS/MOK.crt" --output grubx64.efi systemd-boot.efi >/dev/null
+  sbsign --key "$KEYS/MOK.key" --cert "$KEYS/MOK.crt" --output vmlinuz-linux.signed vmlinuz-linux >/dev/null
+  cp "$SHIM/shimx64.efi" BOOTx64.EFI
+  cp "$SHIM/mmx64.efi" mmx64.efi
+  cp "$KEYS/MOK.cer" HALO-MOK.cer
+  # The ESP (what UEFI firmware boots) and the same files on the ISO 9660 side.
+  mcopy -o -i "$ESP" BOOTx64.EFI grubx64.efi mmx64.efi ::/EFI/BOOT/
+  mcopy -o -i "$ESP" vmlinuz-linux.signed ::/halo/boot/x86_64/vmlinuz-linux
+  mcopy -o -i "$ESP" HALO-MOK.cer ::/HALO-MOK.cer
+  cp BOOTx64.EFI grubx64.efi mmx64.efi EFI/BOOT/
+  xorriso -indev "$ISO_SRC" -outdev "$WORK/out/halo-signed.iso" -map EFI /EFI \
+    -map vmlinuz-linux.signed /halo/boot/x86_64/vmlinuz-linux -map HALO-MOK.cer /HALO-MOK.cer \
+    -boot_image any replay -append_partition 2 0xef "$ESP" >/dev/null 2>&1
+) || die "Secure Boot repack failed (in $SB)"
+mv "$WORK/out/halo-signed.iso" "$ISO_SRC"
+echo "shim $(pacman -Q shim-signed | cut -d' ' -f2) -> systemd-boot and kernel signed with $(openssl x509 -in "$KEYS/MOK.crt" -noout -fingerprint -sha256 | cut -d= -f2 | cut -c1-23)…"
+
+#--------------------------------------------------------------------------
+log "6/7 Release files"
 mkdir -p "$DIST"
 ISO="$DIST/Halo-x86_64.iso"
 cp "$ISO_SRC" "$ISO"

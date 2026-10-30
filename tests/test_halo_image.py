@@ -111,11 +111,17 @@ def test_calamares_sequence_has_a_config_for_every_configurable_module():
     assert seq[:6] == ["welcome", "locale", "keyboard", "partition", "users", "summary"]
     assert seq[-1] == "finished" and "shellprocess@halo-cleanup" in seq
     assert seq.index("shellprocess@halo-cleanup") < seq.index("initcpio") < seq.index("bootloader")
+    # Secure Boot is set up after the boot loader, and the installer removes itself only after that.
+    assert seq.index("bootloader") < seq.index("shellprocess@halo-secureboot") < seq.index("umount")
+    sb = (ARCH / "pkgbuilds" / "halo-calamares-config" / "halo-secureboot").read_text(encoding="utf-8")
+    assert sb.rstrip().endswith("exit 0") and "pacman -Rns" in sb and "pacman -Rns" not in (
+        ARCH / "pkgbuilds" / "halo-calamares-config" / "halo-cleanup").read_text(encoding="utf-8")
+    assert "mokutil --import" in sb and "--sbat /usr/share/grub/sbat.csv" in sb
     no_config = {"summary", "localecfg", "networkcfg", "hwclock", "umount"}
     for m in seq:
         if m in no_config:
             continue
-        name = "shellprocess-halo-cleanup.conf" if m == "shellprocess@halo-cleanup" else f"{m}.conf"
+        name = f"shellprocess-{m.split('@', 1)[1]}.conf" if m.startswith("shellprocess@") else f"{m}.conf"
         assert (CAL / "modules" / name).is_file(), name
     assert re.search(r"^branding: halo$", settings, re.M)
     assert (CAL / "branding" / "halo" / "branding.desc").is_file() and (CAL / "branding" / "halo" / "show.qml").is_file()

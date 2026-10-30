@@ -31,7 +31,8 @@ else
   exit 1
 fi
 
-$SUDO "${ENGINE[@]}" run --rm --privileged --network host \
+# /dev from the host: validate_iso.sh loop-mounts the ISO (a container has no udev to make /dev/loopN).
+$SUDO "${ENGINE[@]}" run --rm --privileged --network host -v /dev:/dev \
   -v "$REPO:/src" \
   -v "$WORK/build:/work" \
   -v "$WORK/pacman-cache:/var/cache/pacman/pkg" \

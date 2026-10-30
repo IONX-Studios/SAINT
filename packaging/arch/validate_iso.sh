@@ -87,6 +87,9 @@ for u in multi-user.target.wants/NetworkManager.service multi-user.target.wants/
   check "enabled: $u" test -L "$S/$u"
 done
 check "boot doesn't wait for the network" test ! -e "$S/network-online.target.wants/NetworkManager-wait-online.service"
+[ "$(readlink "$S/systemd-firstboot.service")" = /dev/null ] && pass "no console questions at boot (systemd-firstboot masked)" \
+  || fail "systemd-firstboot would stop the boot to ask questions"
+check "a timezone is set (/etc/localtime)" test -L "$R/etc/localtime"
 grep -q '^X-KDE-Shortcuts=Alt+`' "$R/usr/share/kglobalaccel/saint-overlay.desktop" && pass "Alt+\` opens SAINT's overlay" || fail "overlay shortcut missing"
 grep -q 'applications:saint.desktop' "$R/usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/saintos-defaults.js" \
   && pass "SAINT pinned once on the taskbar" || fail "SAINT isn't pinned"

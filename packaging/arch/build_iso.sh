@@ -206,6 +206,10 @@ S="$A/etc/systemd/system"
 # delays the desktop).
 mkdir -p "$S/multi-user.target.wants" "$S/graphical.target.wants" "$S/bluetooth.target.wants"
 ln -sf /usr/lib/systemd/system/graphical.target "$S/default.target"
+# No console questions at boot: systemd-firstboot would stop the live boot to ask for a timezone (the
+# installer sets timezone, locale and keymap on the installed system).
+ln -sf /dev/null "$S/systemd-firstboot.service"
+ln -sf /usr/share/zoneinfo/UTC "$A/etc/localtime"
 ln -sf /usr/lib/systemd/system/sddm.service "$S/display-manager.service"
 ln -sf /usr/lib/systemd/system/NetworkManager.service "$S/multi-user.target.wants/NetworkManager.service"
 ln -sf /usr/lib/systemd/system/NetworkManager-dispatcher.service "$S/dbus-org.freedesktop.nm-dispatcher.service"
@@ -257,8 +261,12 @@ echo "$ISO ($(du -h "$ISO" | cut -f1)) sha256 $SHA · image root ${ROOT_MB} MB"
 
 #--------------------------------------------------------------------------
 log "7/7 Validate"
+VSTATUS=0
 if [ "$VALIDATE" -eq 1 ]; then
+  set +e                                     # report the step times either way; fail at the end
   "$HERE/validate_iso.sh" "$ISO" | tee "$DIST/VALIDATION.txt"
+  VSTATUS=${PIPESTATUS[0]}
+  set -e
 else
   echo "skipped (--no-validate)" | tee "$DIST/VALIDATION.txt"
 fi
@@ -280,3 +288,4 @@ echo
 echo "Build times (mode $MODE):"
 for s in "${STEP_TIMES[@]}"; do printf '  %-32s %4d min %02d s\n' "${s%=*}" $(( ${s##*=} / 60 )) $(( ${s##*=} % 60 )); done
 printf '  %-32s %4d min %02d s\n' "total" $(( (SECONDS - T0) / 60 )) $(( (SECONDS - T0) % 60 ))
+[ "$VSTATUS" -eq 0 ] || die "validation failed: $DIST/VALIDATION.txt"

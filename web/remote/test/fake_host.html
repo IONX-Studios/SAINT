@@ -17,6 +17,9 @@ const CODE = "AEBA-GBAF";
 const psk = await P.pskFor(P.decodeCode(CODE));
 const devices = [];
 window.received = []; window.files = []; window.state = "idle";
+window.hostInfo = { device_id: me.deviceId, pubkey: P.b64(me.publicKey), account };
+// let a device in without pairing (the desktop app pairs over Link, which this stand-in doesn't speak)
+window.allow = (device_id, pubkey, name) => { devices.push({ device_id, pubkey, name }); send({ type: "devices", keys: devices }); };
 let pc = null, client = null, sid = null;
 
 // moving picture
@@ -52,7 +55,7 @@ ws.onmessage = async (e) => {
   const pub = P.unb64(dev.pubkey, 32);
   if (P.SIGNED_TYPES.has(m.type)) await P.verify(m, me, pub);
   if (m.type === "session.request") {
-    client = { id: m.from, pub }; sid = m.session_id; window.state = "negotiating";
+    client = { id: m.from, pub }; sid = m.session_id; window.state = "negotiating"; window.lastWant = m.want;
     send(await signed("session.accept", { ice_servers: [] }));
     pc = new RTCPeerConnection();
     const stream = document.getElementById("c").captureStream(30);
@@ -87,6 +90,8 @@ ws.onmessage = async (e) => {
     send(await signed("sdp.offer", { sdp: pc.localDescription.sdp }));
   } else if (m.type === "sdp.answer") {
     await pc.setRemoteDescription({ type: "answer", sdp: m.sdp });
+    window.answerCodecs = [...m.sdp.matchAll(/a=rtpmap:\d+ ([A-Za-z0-9]+)\//g)].map((x) => x[1]);
+    window.wantCodecs = window.lastWant?.codecs;
   } else if (m.type === "ice") {
     await pc.addIceCandidate(m.candidate);
   } else if (m.type === "session.end") {

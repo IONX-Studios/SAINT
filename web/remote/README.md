@@ -9,7 +9,10 @@ Safari 17+ (iPad, iPhone, Mac) and Firefox 130+; needs https (or `localhost`) fo
 - `js/client.js` — relay socket with reconnect, pairing, one WebRTC session (video, `control` + `files` channels,
   stats)
 - `js/store.js` — this browser's non-extractable key and paired PCs (IndexedDB)
-- `js/app.js` — the page
+- `js/viewer.js` — the live screen (session, reconnect, input, clipboard, files, stats), shared by both pages
+- `js/app.js` — the browser page: pairing and the list of PCs
+- `desktop.html` + `js/desktop.js` — the same viewer inside SAINT's desktop app (`ui/remote_desktop.py`); identity
+  and relay come from the app over Qt WebChannel
 
 Pairing: run `halo-remote pair` on the PC and open the link it prints (the code travels in the `#fragment`,
 never to a server), or type code, PC id and account.

@@ -35,6 +35,10 @@ datas = [
     (str(ROOT / "data" / "wake" / "melspectrogram.onnx"), "data/wake"),
     (str(ROOT / "data" / "wake" / "embedding_model.onnx"), "data/wake"),
     (str(ROOT / "modules" / "lang" / "lexicon"), "modules/lang/lexicon"),
+    # Halo Remote's viewer for Devices -> Remote desktop (ui/remote_desktop.py; Qt WebEngine comes with PySide6)
+    (str(ROOT / "web" / "remote" / "desktop.html"), "web/remote"),
+    (str(ROOT / "web" / "remote" / "style.css"), "web/remote"),
+    (str(ROOT / "web" / "remote" / "js"), "web/remote/js"),
 ]
 # Large Kokoro model files are deliberately excluded. The installed app downloads
 # them from the SAINT GitHub Release into %LOCALAPPDATA%/SAINT/data.

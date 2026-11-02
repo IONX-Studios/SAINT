@@ -75,9 +75,12 @@ async function hmac(key, data) {
   const k = await subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return new Uint8Array(await subtle.sign("HMAC", k, data));
 }
-async function x25519(privateKey, peerPub) {
+// An identity holds a WebCrypto key (browser), or does the X25519 itself: SAINT's desktop app keeps its Link
+// key in Python and lends the page `sharedSecret(peerPub)` instead.
+async function x25519(me, peerPub) {
+  if (me.sharedSecret) return new Uint8Array(await me.sharedSecret(peerPub));
   const pub = await subtle.importKey("raw", peerPub, { name: "X25519" }, true, []);
-  return new Uint8Array(await subtle.deriveBits({ name: "X25519", public: pub }, privateKey, 256));
+  return new Uint8Array(await subtle.deriveBits({ name: "X25519", public: pub }, me.privateKey, 256));
 }
 async function mac(key, label, obj) {
   return b64(await hmac(key, concat(enc.encode("halo-remote/v1 " + label + "\0"), enc.encode(canonical(obj)))));
@@ -107,7 +110,7 @@ export function supported() {
 // ---------------------------------------------------------------- session MACs
 export async function sessionKey(me, peerPub) {
   const [low, high] = cmp(me.publicKey, peerPub) <= 0 ? [me.publicKey, peerPub] : [peerPub, me.publicKey];
-  return hkdf(await x25519(me.privateKey, peerPub), SALT, concat(enc.encode("session-mac"), low, high));
+  return hkdf(await x25519(me, peerPub), SALT, concat(enc.encode("session-mac"), low, high));
 }
 
 export const SIGNED_TYPES = new Set(["session.request", "session.accept", "session.deny", "sdp.offer", "sdp.answer",
@@ -140,7 +143,7 @@ export function routed(type, from, to, fields = {}, now = Date.now() / 1000) {
 
 // ---------------------------------------------------------------- relay login
 export async function relayProof(me, challenge, role) {
-  const key = await hkdf(await x25519(me.privateKey, unb64(challenge.eph, 32)), SALT, enc.encode("relay-login"));
+  const key = await hkdf(await x25519(me, unb64(challenge.eph, 32)), SALT, enc.encode("relay-login"));
   const input = concat(unb64(challenge.nonce, 32), enc.encode(me.deviceId), new Uint8Array([0]), enc.encode(role));
   return { type: "relay.proof", sig: b64(await hmac(key, input)) };
 }

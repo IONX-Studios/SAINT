@@ -66,3 +66,13 @@ test("a fresh browser identity signs messages the other side accepts", async () 
     { session_id: "x", client: "Chromebook", want: {} }), me, pub("host"));
   await P.verify(msg, host, me.publicKey);
 });
+
+test("an identity that lends sharedSecret (the desktop app) signs the same as one holding the key", async () => {
+  const client = await id("client");
+  const lent = { deviceId: client.deviceId, publicKey: client.publicKey,
+    sharedSecret: async (peer) => new Uint8Array(await globalThis.crypto.subtle.deriveBits({ name: "X25519",
+      public: await globalThis.crypto.subtle.importKey("raw", peer, { name: "X25519" }, true, []) }, client.privateKey, 256)) };
+  const { sig, ...body } = V.signed["session.request"];
+  assert.deepEqual(await P.sign(body, lent, pub("host")), V.signed["session.request"]);
+  assert.deepEqual(await P.relayProof(lent, V.relay_login.challenge, "client"), V.relay_login.proof);
+});

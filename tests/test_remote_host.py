@@ -346,3 +346,42 @@ def test_packaged_unit_matches_the_one_enable_writes():
                         "packaging", "linux", "systemd", "halo-remote.service.in")
     with open(path, encoding="utf-8") as f:
         assert f.read() == H.UNIT.format(root="@SAINT_ROOT@")
+
+
+def test_codec_follows_what_the_client_decodes():
+    have = lambda n: n in ("x264enc", "vp8enc")   # noqa: E731
+    assert H.client_codecs({}) == ["H264"]                                   # older clients
+    assert H.client_codecs({"codecs": ["vp8", "AV1"]}) == ["VP8"]
+    assert H.pick_encoder(have, H.client_codecs({"codecs": ["VP8", "H264"]})) == "x264enc"
+    assert H.pick_encoder(have, ["VP8"]) == "vp8enc"
+    with pytest.raises(RuntimeError):
+        H.pick_encoder(have, [])
+    desc = H.pipeline_description(3, 9, "vp8enc", {"max_w": 1280, "max_h": 720, "fps": 30})
+    assert "format=I420" in desc and "target-bitrate=2764000" in desc
+    assert "rtpvp8pay pt=97" in desc and "encoding-name=VP8" in desc and "h264" not in desc
+
+
+def test_link_tells_paired_apps_where_remote_desktop_is(tmp_path, monkeypatch):
+    from modules.link.identity import Identity, Peer
+    from modules.link.service import LinkService
+    from modules.link.wire import LinkError
+    monkeypatch.setattr(H, "_data_path", lambda *parts: str(tmp_path.joinpath(*parts)))
+    cfg = H.HostConfig.load()
+    cfg.relay_url = "wss://relay.example.com/ws"
+    cfg.save()
+    svc = LinkService.__new__(LinkService)
+    priv, pub = crypto.generate_keypair()
+    ident = Identity(str(tmp_path / "identity.json"))
+    ident._data, ident._private = {"public_key": pub.hex(), "name": "Halo"}, priv
+    svc.identity = ident
+
+    class Ctx:
+        def __init__(self, **kw):
+            self.peer = Peer(id="p", name="P", public_key="", **kw)
+    out = svc._h_remote_info(Ctx(role=OWN), {})
+    assert out == {"relay_url": "wss://relay.example.com/ws", "device_id": P.device_id_for(pub),
+                   "account": P.account_id_for(pub)}
+    with pytest.raises(LinkError):
+        svc._h_remote_info(Ctx(role="collaborator"), {})
+    with pytest.raises(LinkError):
+        svc._h_remote_info(Ctx(role=OWN, perms={"remote_desktop": "deny"}), {})

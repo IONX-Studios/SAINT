@@ -525,39 +525,59 @@ class FileReceiver:
 # ---------------------------------------------------------------------- #
 # GStreamer
 # ---------------------------------------------------------------------- #
-ENCODERS = [  # first one the system has wins: VA-API (Intel/AMD), NVENC, software
-    ("vah264lpenc", "vah264lpenc bitrate={kbps} key-int-max=60 rate-control=cbr"),
-    ("vah264enc", "vah264enc bitrate={kbps} key-int-max=60 rate-control=cbr"),
-    ("nvh264enc", "nvh264enc bitrate={kbps} gop-size=60 preset=low-latency-hq zerolatency=true"),
-    ("x264enc", "x264enc bitrate={kbps} key-int-max=60 tune=zerolatency speed-preset=ultrafast threads=4"),
+ENCODERS = [  # (codec, element, settings) — first one the system has wins, H.264 before VP8
+    ("H264", "vah264lpenc", "vah264lpenc bitrate={kbps} key-int-max=60 rate-control=cbr"),
+    ("H264", "vah264enc", "vah264enc bitrate={kbps} key-int-max=60 rate-control=cbr"),
+    ("H264", "nvh264enc", "nvh264enc bitrate={kbps} gop-size=60 preset=low-latency-hq zerolatency=true"),
+    ("H264", "x264enc", "x264enc bitrate={kbps} key-int-max=60 tune=zerolatency speed-preset=ultrafast threads=4"),
+    # for clients without an H.264 decoder (SAINT's desktop app: Qt WebEngine ships without proprietary codecs)
+    ("VP8", "vp8enc", "vp8enc deadline=1 cpu-used=8 target-bitrate={bps} keyframe-max-dist=60 threads=4 "
+                      "end-usage=cbr error-resilient=partitions"),
 ]
+CODECS = ("H264", "VP8")
 
 
-def pick_encoder(available: Callable[[str], bool]) -> str:
-    for name, _ in ENCODERS:
-        if available(name):
+def client_codecs(want: dict) -> List[str]:
+    """What the client said it decodes (``want.codecs``); clients from before that field all decode H.264."""
+    raw = want.get("codecs") if isinstance(want, dict) else None
+    if not isinstance(raw, list):
+        return ["H264"]
+    return [c for c in CODECS if c in [str(x).upper() for x in raw]]
+
+
+def pick_encoder(available: Callable[[str], bool], codecs=("H264",)) -> str:
+    for codec, name, _ in ENCODERS:
+        if codec in codecs and available(name):
             return name
-    raise RuntimeError("No H.264 encoder: install gst-plugins-bad (VA-API) or gst-plugins-ugly (x264).")
+    raise RuntimeError("No encoder for %s: install gst-plugins-bad (VA-API), gst-plugins-ugly (x264) or "
+                       "gst-plugins-good (vp8enc)." % "/".join(codecs or ["-"]))
 
 
 def pipeline_description(fd: int, node_id: int, encoder: str, want: dict) -> str:
-    """pipewiresrc (portal stream) -> scale/rate to what the client asked for -> H.264 (constrained
-    baseline: Safari/iOS decode it in hardware) -> RTP -> webrtcbin."""
+    """pipewiresrc (portal stream) -> scale/rate to what the client asked for -> H.264 (constrained baseline:
+    Safari/iOS decode it in hardware) or VP8 -> RTP -> webrtcbin."""
     max_w = min(max(int(want.get("max_w") or 1920), 320), 3840)
     max_h = min(max(int(want.get("max_h") or 1080), 240), 2160)
     fps = min(max(int(want.get("fps") or 30), 5), 60)
     kbps = min(max(int(max_w * max_h * fps / 10000), 1500), 20000)
-    enc = dict(ENCODERS)[encoder].format(kbps=kbps)
+    codec, _, settings = next(e for e in ENCODERS if e[1] == encoder)
+    enc = settings.format(kbps=kbps, bps=kbps * 1000)
+    if codec == "H264":
+        fmt, tail = "NV12", (
+            "{enc} ! video/x-h264,profile=constrained-baseline ! h264parse config-interval=-1 ! "
+            "rtph264pay config-interval=-1 aggregate-mode=zero-latency pt=96 ! "
+            "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000").format(enc=enc)
+    else:
+        fmt, tail = "I420", (
+            "{enc} ! rtpvp8pay pt=97 picture-id-mode=15-bit ! "
+            "application/x-rtp,media=video,encoding-name=VP8,payload=97,clock-rate=90000").format(enc=enc)
     return (
         "pipewiresrc fd={fd} path={node} do-timestamp=true keepalive-time=1000 ! "
         "videoconvert ! videoscale add-borders=true ! videorate drop-only=true ! "
-        "video/x-raw,format=NV12,framerate={fps}/1,width=[16,{w}],height=[16,{h}],pixel-aspect-ratio=1/1 ! "
-        "queue max-size-buffers=1 leaky=downstream ! {enc} ! "
-        "video/x-h264,profile=constrained-baseline ! h264parse config-interval=-1 ! "
-        "rtph264pay config-interval=-1 aggregate-mode=zero-latency pt=96 ! "
-        "application/x-rtp,media=video,encoding-name=H264,payload=96,clock-rate=90000 ! "
+        "video/x-raw,format={fmt},framerate={fps}/1,width=[16,{w}],height=[16,{h}],pixel-aspect-ratio=1/1 ! "
+        "queue max-size-buffers=1 leaky=downstream ! {tail} ! "
         "webrtcbin name=webrtc bundle-policy=max-bundle latency=0"
-    ).format(fd=fd, node=node_id, fps=fps, w=max_w, h=max_h, enc=enc)
+    ).format(fd=fd, node=node_id, fps=fps, w=max_w, h=max_h, fmt=fmt, tail=tail)
 
 
 def webrtcbin_ice(ice_servers: list) -> Tuple[Optional[str], List[str]]:

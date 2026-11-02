@@ -611,6 +611,7 @@ class LinkService:
         n.register("share.push", self._h_share)
         n.register("context.feed", self._h_context)
         n.register("log.get", self._h_log_get)
+        n.register("remote.info", self._h_remote_info)
 
     def _h_status(self, ctx, data: dict) -> dict:
         ctx.require("status", "tell you what this PC is doing")
@@ -624,6 +625,19 @@ class LinkService:
             pass
         return {"device": self.identity.hello(), "time": time.time(), "now_playing": playing,
                 "language": config.get("language.preferred", [])}
+
+    def _h_remote_info(self, ctx, data: dict) -> dict:
+        """Where this PC's Halo Remote host can be reached, so a paired app needs nothing typed in.
+        An empty relay_url means remote desktop isn't set up on this PC (`halo-remote set-relay`)."""
+        if ctx.peer.permission("remote_desktop") == DENY:
+            raise LinkError("Remote desktop is switched off for this device here.", "denied")
+        from modules.remote_desktop.host import HostConfig
+        from modules.remote_desktop.protocol import account_id_for
+        return {"relay_url": HostConfig.load().relay_url, "device_id": self.identity.device_id,
+                "account": account_id_for(self.identity.public_key)}
+
+    def remote_info(self, peer: Peer) -> dict:
+        return self.node.request(peer.id, "remote.info", {}, timeout=15)
 
     def _h_log_get(self, ctx, data: dict) -> dict:
         """This PC's recent log lines, for the owner's other PC that collects them."""

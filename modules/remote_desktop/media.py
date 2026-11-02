@@ -162,7 +162,8 @@ class Media:
 
     def _portal_ready(self, fd, node, w, h):
         self.mapper = H.InputMapper(node, w, h)
-        enc = H.pick_encoder(lambda name: Gst.ElementFactory.find(name) is not None)
+        enc = H.pick_encoder(lambda name: Gst.ElementFactory.find(name) is not None,
+                             H.client_codecs(self.session.want))
         self.pipeline = Gst.parse_launch(H.pipeline_description(fd, node, enc, self.session.want))
         self.webrtc = self.pipeline.get_by_name("webrtc")
         stun, turns = H.webrtcbin_ice(self.app.ice_servers)

@@ -38,6 +38,7 @@ with open(os.path.join(_TMP, "config.json"), "w", encoding="utf-8") as f:
         "link": {"manage_firewall": False},
         "game_mode": {"enabled": False, "detect": False},   # never react to games running on this PC
         "spotify": {"client_id": ""},
+        "store": {"artwork": False},              # no Flathub downloads from tests (and no threads outliving them)
         "logging": {"level": "Errors Only"},
     }, f)
 

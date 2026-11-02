@@ -67,7 +67,8 @@ def search_featured(q: str, catalog: Optional[Dict[str, sa.App]] = None) -> List
     for a in catalog.values():
         hay = f"{a.id} {a.name} {a.about} {a.category}".lower()
         if all(w in hay for w in words):
-            hits.append(Result("featured", a.id, a.name, a.about, extra={"method": a.method, "ref": a.ref}))
+            hits.append(Result("featured", a.id, a.name, a.about, extra={"method": a.method, "ref": a.ref,
+                                                                          "art": a.art, "category": a.category}))
     return hits
 
 
@@ -116,7 +117,8 @@ def search_flathub(q: str, post: Optional[Callable] = None, run: Callable = subp
         for h in (data or {}).get("hits", []):
             app_id = h.get("app_id", "")
             if sa._SAFE_FLATPAK.match(app_id):
-                hits.append(Result("flathub", app_id, h.get("name") or app_id, h.get("summary") or ""))
+                hits.append(Result("flathub", app_id, h.get("name") or app_id, h.get("summary") or "",
+                                   extra={"icon": h.get("icon") or "", "developer": h.get("developer_name") or ""}))
         return hits
     except Exception as e:
         log.info("store.flathub_api_unavailable %s", e)

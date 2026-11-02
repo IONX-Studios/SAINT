@@ -281,6 +281,22 @@ QLabel#Readout {{ font-family: "Noto Sans Mono", "Cascadia Mono", Consolas, mono
 QLabel#ReadoutSmall {{ font-family: "Noto Sans Mono", "Cascadia Mono", Consolas, monospace; font-size: {fs + 2}px;
     font-weight: 600; color: {p.text}; }}
 QLabel#StatLabel {{ color: {p.faint}; font-size: {fs - 3}px; font-weight: 600; }}
+/* Store: app tiles, the featured banner, its dots, the big search box */
+QFrame#StoreTile {{ background: {p.surface}; border: 1px solid {p.border}; border-radius: 14px; }}
+QFrame#StoreTile:hover {{ border-color: {rgba(p.accent, 0.45)}; background: {_mix(p.surface, p.accent, 0.03)}; }}
+QLabel#TileName {{ font-size: {fs + 1}px; font-weight: 600; color: {p.text}; }}
+QPushButton#TileAction {{ background: {p.accent_soft}; color: {p.accent}; border: 1px solid {rgba(p.accent, 0.35)};
+    border-radius: 8px; padding: 4px 14px; font-weight: 600; }}
+QPushButton#TileAction:hover {{ background: {p.accent}; color: {p.on_accent}; }}
+QPushButton#TileOpen {{ background: {p.surface2}; color: {p.text}; border: 1px solid {p.border_strong};
+    border-radius: 8px; padding: 4px 14px; font-weight: 600; }}
+QFrame#StoreHero {{ border: none; }}
+QPushButton#HeroDot {{ background: rgba(255,255,255,0.35); border: none; border-radius: 4px; padding: 0px; }}
+QPushButton#HeroDot[on="true"] {{ background: {p.accent}; }}
+QLineEdit#StoreSearch {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: 12px;
+    padding: 10px 16px; font-size: {fs + 1}px; }}
+QLineEdit#StoreSearch:focus {{ border-color: {p.accent}; }}
+QLabel#ShelfTitle {{ font-size: {fs + 4}px; font-weight: 600; color: {p.text}; padding-top: 6px; }}
 QFrame#DeviceTile {{ background: transparent; border: 1px solid transparent; border-radius: 10px; }}
 QFrame#DeviceTile:hover {{ background: {hover}; }}
 QFrame#DeviceTileActive {{ background: {p.surface}; border: 1px solid {rgba(p.accent, 0.45)}; border-radius: 10px; }}

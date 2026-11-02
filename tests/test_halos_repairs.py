@@ -134,8 +134,10 @@ def test_halo_edges_frame_the_screen_and_never_cross_the_middle():
 # --------------------------------------------------------------------------- image defaults
 def test_alt_grave_is_released_from_kwin_in_the_image():
     pkgbuild = (ROOT / "packaging/arch/pkgbuilds/saint/PKGBUILD").read_text(encoding="utf-8")
-    assert "Walk Through Windows of Current Application=none,Alt+`" in pkgbuild
-    assert 'etc/xdg/kglobalshortcutsrc' in pkgbuild
+    # KDE reads only the user's kglobalshortcutsrc: it must be in /etc/skel, with KWin's exact default
+    # (a literal backslash-t between its two keys, as KConfig writes it). Verified in the build-8 VM.
+    assert 'etc/skel/.config/kglobalshortcutsrc' in pkgbuild and 'etc/xdg/kglobalshortcutsrc' not in pkgbuild
+    assert "Walk Through Windows of Current Application=Meta+`,Alt+`" + chr(92) + "tMeta+`," in pkgbuild
 
 
 def test_kokoro_voice_ships_with_pinned_checksums():

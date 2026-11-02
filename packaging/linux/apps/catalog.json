@@ -101,7 +101,7 @@
       "name": "Visual Studio Code",
       "category": "Developer",
       "method": "aur",
-      "ref": "visual-studio-code-bin",
+      "ref": "visual-studio-code-bin", "art": "com.visualstudio.code",
       "about": "Microsoft's code editor (Microsoft's build from the AUR: marketplace, Copilot, Claude)"
     },
     {

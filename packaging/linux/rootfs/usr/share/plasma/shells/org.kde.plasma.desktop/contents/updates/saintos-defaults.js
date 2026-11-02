@@ -18,8 +18,8 @@ for (var i = 0; i < all.length; i++) {
     d.wallpaperPlugin = "org.saintos.wallpaper";
     if (i === 0) {                  // the SAINT widget and what's playing, top right of the first screen
         var g = screenGeometry(d.screen);
-        d.addWidget("org.saintos.saint", g.width - 380, 48, 340, 130);
-        d.addWidget("org.saintos.music", g.width - 380, 196, 340, 140);
+        d.addWidget("org.saintos.saint", g.width - 400, 48, 360, 130);
+        d.addWidget("org.saintos.music", g.width - 400, 196, 360, 140);
     }
 }
 

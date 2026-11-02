@@ -100,7 +100,9 @@ check "boot doesn't wait for the network" test ! -e "$S/network-online.target.wa
   || fail "systemd-firstboot would stop the boot to ask questions"
 check "a timezone is set (/etc/localtime)" test -L "$R/etc/localtime"
 grep -q '^X-KDE-Shortcuts=Alt+`' "$R/usr/share/kglobalaccel/saint-overlay.desktop" && pass "Alt+\` opens SAINT's overlay" || fail "overlay shortcut missing"
-grep -q '^Walk Through Windows of Current Application=none,' "$R/etc/xdg/kglobalshortcutsrc" && pass "KWin doesn't take Alt+\`" || fail "KWin's window switcher still owns Alt+\`"
+K="$R/etc/skel/.config/kglobalshortcutsrc"
+grep -qxF 'Walk Through Windows of Current Application=Meta+`,Alt+`\tMeta+`,Walk Through Windows of Current Application' "$K" && pass "KWin doesn't take Alt+\` (skel)" || fail "KWin's window switcher still owns Alt+\`"
+grep -q '^_launch=Ctrl+Shift+Esc' "$K" && grep -q '^_launch=Alt+`' "$K" && pass "SAINT shortcuts in the new-user config" || fail "SAINT shortcuts missing from /etc/skel"
 grep -q '^ColorScheme=HaloDark' "$R/etc/xdg/kdeglobals" && [ -s "$R/usr/share/color-schemes/HaloLight.colors" ] && [ -s "$R/usr/share/plasma/look-and-feel/org.saintos.desktop.light/contents/defaults" ] && pass "Halo Dark default, Halo Light available" || fail "Halo colour schemes or look-and-feel missing"
 grep -q '^ExecStart=/usr/bin/python3 -m modules.remote_desktop.host run' "$R/usr/lib/systemd/user/halo-remote.service" && [ ! -e "$R/etc/systemd/user/graphical-session.target.wants/halo-remote.service" ] && pass "Halo Remote host installed, off by default" || fail "Halo Remote service missing or enabled by default"
 for so in libgstwebrtc libgstpipewire libgstx264 libgstvpx; do [ -e "$R/usr/lib/gstreamer-1.0/$so.so" ] && pass "GStreamer $so" || fail "GStreamer $so missing (Halo Remote can't stream)"; done

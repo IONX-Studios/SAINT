@@ -66,7 +66,7 @@ PlasmoidItem {
     fullRepresentation: RowLayout {
         Layout.minimumWidth: Kirigami.Units.gridUnit * 14
         Layout.minimumHeight: Kirigami.Units.gridUnit * 5
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 22
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 19
         Layout.preferredHeight: Kirigami.Units.gridUnit * 7
         spacing: Kirigami.Units.largeSpacing
 
@@ -74,7 +74,7 @@ PlasmoidItem {
             id: art
             Layout.fillHeight: true
             Layout.preferredWidth: height
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 10
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 6
             radius: Kirigami.Units.cornerRadius
             color: Kirigami.Theme.alternateBackgroundColor
             clip: true

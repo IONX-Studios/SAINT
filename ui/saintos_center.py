@@ -324,8 +324,10 @@ def build_window(start_page: str = "Welcome"):
     info = QLabel(
         f"{product()} is a normal {'Arch Linux' if halo else 'Fedora'} KDE desktop: everything works without "
         "SAINT, without a network and without an AI model.\n\nTo get SAINT talking:\n"
-        "  1. AI — install Ollama and pull one model you choose (SAINT never downloads models on its own), "
-        "or point SAINT at a provider you already use.\n"
+        "  1. AI — " + ("Ollama is built in and fetches a small default model in the background once you're "
+                       "online (AI page: see it, change it, test a reply)" if halo else
+                       "install Ollama and pull one model you choose") + ", or point SAINT at a provider you "
+        "already use.\n"
         "  2. Voice — pick your microphone. SAINT's speech models download the first time you start it.\n"
         "  3. Service — start SAINT now, and turn on “start at login” if you want it always there.\n\n"
         + ("Halo is built from Arch Linux packages; it isn't an official Arch Linux product." if halo else

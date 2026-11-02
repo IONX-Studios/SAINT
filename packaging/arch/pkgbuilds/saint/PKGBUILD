@@ -137,12 +137,15 @@ PY
   for w in plasmoids/org.saintos.saint plasmoids/org.saintos.halo plasmoids/org.saintos.music; do
     cp -a "$fs/usr/share/plasma/$w" "$pkgdir/usr/share/plasma/plasmoids/"
   done
-  # Plasma gives Alt+` to KWin's "Walk Through Windows of Current Application" (a window switcher), which
-  # takes the key before SAINT's binding can: Alt+` then switches windows and the overlay never opens.
-  # Halo's default hands Alt+` to SAINT; the switcher keeps Alt+~ (reverse) and stays in Settings > Shortcuts.
-  install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kglobalshortcutsrc" <<'EOF'
+  # Global shortcuts: Alt+` opens SAINT's overlay, Ctrl+Shift+Esc opens SAINT Task Manager. Plasma gives
+  # Alt+` (and Meta+`) to KWin's "Walk Through Windows of Current Application"; KWin keeps Meta+` here.
+  # KDE's shortcut service (inside KWin on Plasma 6) reads only the user's own kglobalshortcutsrc, not
+  # /etc/xdg, so this goes in /etc/skel and every new user (live user, installer's user) starts with it.
+  # KWin's default must be written exactly as KWin registers it (Alt+`\tMeta+`) or KDE resets the entry.
+  # Verified in the Halo VM, build 8: both keys work after login with this file (HALOS_TEST_RESULTS.md).
+  install -Dm0644 /dev/stdin "$pkgdir/etc/skel/.config/kglobalshortcutsrc" <<'EOF'
 [kwin]
-Walk Through Windows of Current Application=none,Alt+`,Walk Through Windows of Current Application
+Walk Through Windows of Current Application=Meta+`,Alt+`\tMeta+`,Walk Through Windows of Current Application
 
 [services][saint-overlay.desktop]
 _launch=Alt+`

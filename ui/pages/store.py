@@ -1,9 +1,11 @@
 """
 ui/pages/store.py
 
-The Store page (Halo): one search over Arch, the AUR, Flathub and Windows apps (core/store.py), SAINT's
-picks by category when nothing is searched, and one install queue with live progress. Every install
-ends in a notification naming what was installed (core/saintos_apps.finish).
+The Store page (Halo): one search over Arch, the AUR, Flathub and Windows apps (core/store.py), and one install
+queue with live progress. With nothing searched it opens like a store: a featured banner (the app's real
+screenshot and brand colour), then SAINT's picks in shelves of tiles by category. Icons, screenshots and
+developers are the publishers' own from Flathub (core/store_art.py, cached); an app without any shows its
+initial. Every install ends in a notification naming what was installed (core/saintos_apps.finish).
 
 AUR packages are made by Arch users, not Arch, and Windows apps run under Wine: both say so, with
 votes / the PKGBUILD link / what to expect, and wait for a yes before anything runs.
@@ -15,9 +17,11 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
-from ui.widgets import Card, Page, Segmented, chip, clear_layout, run_async
+from ui.components.store_tiles import AppTile, HeroBanner, TileGrid
+from ui.widgets import Card, Page, Segmented, clear_layout, run_async
 
 FILTERS = [("All", None), ("Arch", "repo"), ("Flathub", "flathub"), ("AUR", "aur"), ("Windows", "windows")]
+FEATURED = ["heroic", "blender", "obs", "steam", "krita", "spotify"]      # the banner's rotation (catalog ids)
 
 
 class _Bridge(QObject):
@@ -38,7 +42,8 @@ class StorePage(Page):
 
         bar = QHBoxLayout()
         self.query = QLineEdit()
-        self.query.setPlaceholderText("Search apps — Blender, Roblox Studio, VS Code, Notepad++…")
+        self.query.setObjectName("StoreSearch")
+        self.query.setPlaceholderText("Search every app — Blender, Roblox Studio, VS Code, Notepad++…")
         self.query.setClearButtonEnabled(True)
         # Live search: results follow the text as it's typed (debounced), and an empty box shows the picks at once.
         self._seq = 0
@@ -77,10 +82,12 @@ class StorePage(Page):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         self.list = QVBoxLayout(inner)
-        self.list.setContentsMargins(0, 0, 8, 0)
-        self.list.setSpacing(8)
+        self.list.setContentsMargins(0, 0, 10, 0)
+        self.list.setSpacing(14)
         self.list.addStretch()
         scroll.setWidget(inner)
         self.root.addWidget(scroll, 1)
@@ -90,36 +97,33 @@ class StorePage(Page):
         self._show_picks()
 
     # ------------------------------------------------------------------ results
-    def _row(self, r, installed=False):
-        card = Card()
-        top = QHBoxLayout()
-        name = QLabel(f"<b>{r.name}</b>" + (f"  <span style='opacity:.6'>{r.version}</span>" if r.version else ""))
-        top.addWidget(name)
-        top.addWidget(chip(r.label, "accent" if r.source == "featured" else ""))
-        if r.source == "aur":
-            e = r.extra
-            top.addWidget(chip(f"{e.get('votes', 0)} votes" + (" · out of date" if e.get("out_of_date") else ""),
-                               "warn" if e.get("out_of_date") else ""))
-        top.addStretch()
-        blocked = r.extra.get("blocked", "")
-        if installed or r.installed:
-            top.addWidget(chip("Installed", "ok"))
-        elif blocked:
-            alt = r.extra.get("instead")
+    def _tile(self, r):
+        t = AppTile(r, self._act, self._open if self._openable(r) else None)
+        if r.installed:
+            t.set_installed(True)
+        return t
+
+    @staticmethod
+    def _openable(r):
+        return r.source == "flathub" or (r.source == "featured" and (r.extra or {}).get("method") == "flatpak")
+
+    def _act(self, r):
+        alt = (r.extra or {}).get("instead")
+        if (r.extra or {}).get("blocked"):
             if alt:
-                btn = QPushButton("Get the Linux version")
-                btn.clicked.connect(lambda _=False, a=alt: self._search_pick(a))
-                top.addWidget(btn)
-        else:
-            btn = QPushButton("Install")
-            btn.clicked.connect(lambda _=False, res=r: self.install(res))
-            top.addWidget(btn)
-        card.body.addLayout(top)
-        about = QLabel(blocked or r.summary)
-        about.setObjectName("WarnText" if blocked else "Muted")
-        about.setWordWrap(True)
-        card.body.addWidget(about)
-        return card
+                self._search_pick(alt)
+            return
+        self.install(r)
+
+    def _open(self, r):
+        import subprocess
+        ref = r.id if r.source == "flathub" else (r.extra or {}).get("ref", "")
+        try:
+            subprocess.Popen(["flatpak", "run", ref], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.status.setText(f"Opening {r.name}…")
+        except OSError as e:
+            self.status.setText(f"Couldn't open {r.name}: {e}")
 
     def _set_rows(self, rows):
         clear_layout(self.list)
@@ -127,22 +131,53 @@ class StorePage(Page):
             self.list.addWidget(w)
         self.list.addStretch()
 
-    def _show_picks(self):
+    def _picks(self):
         from core import saintos_apps as sa
         from core.store import Result
+        catalog = sa.load_catalog()
+        return catalog, [Result("featured", a.id, a.name, a.about,
+                                extra={"method": a.method, "ref": a.ref, "art": a.art, "category": a.category})
+                         for a in catalog.values()]
+
+    def _show_picks(self):
         try:
-            catalog = sa.load_catalog()
+            catalog, picks = self._picks()
         except Exception as e:
             self.status.setText(f"SAINT's app list isn't available: {e}")
             return
-        rows = []
-        for cat in dict.fromkeys(a.category for a in catalog.values()):
-            head = QLabel(cat.upper())
-            head.setObjectName("CardTitle")
+        by_id = {r.id: r for r in picks}
+        rows = [HeroBanner([by_id[i] for i in FEATURED if i in by_id], self._act)]
+        tiles = {}
+        for cat in dict.fromkeys(r.extra["category"] for r in picks):
+            head = QLabel(cat)
+            head.setObjectName("ShelfTitle")
             rows.append(head)
-            for a in (a for a in catalog.values() if a.category == cat):
-                rows.append(self._row(Result("featured", a.id, a.name, a.about, extra={"method": a.method, "ref": a.ref})))
+            grid = TileGrid()
+            shelf = [self._tile(r) for r in picks if r.extra["category"] == cat]
+            tiles.update({t.result.id: t for t in shelf})
+            grid.set_tiles(shelf)
+            rows.append(grid)
         self._set_rows(rows)
+        self.status.setText("")
+        self._mark_installed(catalog, tiles)
+
+    def _mark_installed(self, catalog, tiles):
+        """Installed apps say so (and Flatpaks open), checked off the GUI thread."""
+        import os
+        if os.name == "nt":
+            return
+        from core import saintos_apps as sa
+
+        def check():
+            return {i: sa.installed(catalog[i]) for i in tiles if i in catalog}
+
+        def show(res):
+            for i, ok in (res or {}).items():
+                try:
+                    tiles[i].set_installed(ok)
+                except RuntimeError:                  # the shelf was rebuilt meanwhile
+                    pass
+        run_async(check, show, lambda _e: None)
 
     def _search_pick(self, catalog_id):
         self.query.setText(catalog_id)
@@ -180,8 +215,12 @@ class StorePage(Page):
 
     def _show_results(self):
         want = FILTERS[max(0, self.filter.index())][1]
-        shown = [r for r in self._results if want is None or r.source == want]
-        self._set_rows([self._row(r) for r in shown])
+        # A Windows app that's blocked because a Linux version exists only points at that version: skip it.
+        shown = [r for r in self._results if (want is None or r.source == want)
+                 and not (r.source == "windows" and (r.extra or {}).get("blocked"))]
+        grid = TileGrid()
+        grid.set_tiles([self._tile(r) for r in shown])
+        self._set_rows([grid] if shown else [])
         self.status.setText(f"{len(shown)} result(s)" if shown else "Nothing found. Try another name.")
 
     # ------------------------------------------------------------------ installing

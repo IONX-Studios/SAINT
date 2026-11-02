@@ -16,17 +16,19 @@ from collections import deque
 if __package__ in (None, ""):                         # run as a script: /opt/saint/app/ui/taskmanager.py
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPointF, QRectF, QSortFilterProxyModel, Qt, QTimer
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPointF, QRectF, QSortFilterProxyModel, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QKeySequence, QLinearGradient, QPainter, QPainterPath, QPen, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QMainWindow, QMessageBox,
-                               QPushButton, QScrollArea, QStackedWidget, QTableView, QTableWidget, QTableWidgetItem,
+                               QPushButton, QScrollArea, QStackedWidget, QStyledItemDelegate, QTableView, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
 from core import sysinfo
 from core.sysinfo import human_bytes, human_duration
 
 PAGES = ["Processes", "Performance", "App history", "Startup apps", "Users", "Services", "System information"]
+PAGE_ICONS = {"Processes": "list", "Performance": "activity", "App history": "history", "Startup apps": "power",
+              "Users": "user", "Services": "settings", "System information": "cpu"}
 REFRESH_MS = 2000
 HISTORY = 60                                          # points per graph (2 minutes at 2 s)
 
@@ -40,73 +42,138 @@ def _palette():
         return palette_for("Dark")
 
 
+_MONO = None
+
+
+def _mono() -> QFont:
+    """Tabular numbers, so columns of values don't jitter as they change."""
+    global _MONO
+    if _MONO is None:
+        _MONO = QFont("Noto Sans Mono")
+        _MONO.setStyleHint(QFont.Monospace)
+        _MONO.setFamilies(["Noto Sans Mono", "Cascadia Mono", "Consolas", "monospace"])
+        _MONO.setPointSizeF(QApplication.font().pointSizeF() * 0.95)
+    return _MONO
+
+
+def _tint(base: str, t: float) -> QColor:
+    """SAINT orange at strength t (0..1): the heat of a busy cell."""
+    c = QColor(base)
+    c.setAlpha(int(18 + 150 * max(0.0, min(1.0, t))))
+    return c
+
+
 # --------------------------------------------------------------------------- widgets
 class Graph(QWidget):
-    """A small line graph of the last HISTORY values (0..100 unless ``maximum`` is given)."""
+    """A line graph over a shared history deque: gridlines, a fill that fades to nothing, and a live end-point.
+    ``maximum`` 0 scales to the largest value shown (network throughput)."""
 
-    def __init__(self, maximum=100.0, color=None):
+    def __init__(self, values=None, maximum=100.0, compact=False):
         super().__init__()
-        self.values = deque(maxlen=HISTORY)
+        self.values = values if values is not None else deque(maxlen=HISTORY)
         self.maximum = maximum
-        self.color = QColor(color or _palette().accent)
-        self.setMinimumHeight(70)
-
-    def push(self, v):
-        self.values.append(max(0.0, float(v or 0.0)))
-        self.update()
+        self.compact = compact
+        self.setMinimumHeight(36 if compact else 220)
 
     def paintEvent(self, _):
         p = _palette()
+        accent = QColor(p.accent)
         g = QPainter(self)
         g.setRenderHint(QPainter.Antialiasing)
-        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        g.setPen(QPen(QColor(p.border), 1))
-        g.drawRoundedRect(r, 6, 6)
+        r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        if not self.compact:
+            g.setPen(QPen(QColor(p.border), 1))
+            g.drawRoundedRect(r, 8, 8)
+            grid = QPen(QColor(p.border), 1, Qt.DashLine)
+            g.setPen(grid)
+            for f in (0.25, 0.5, 0.75):
+                y = r.top() + r.height() * f
+                g.drawLine(QPointF(r.left() + 1, y), QPointF(r.right() - 1, y))
+            r = r.adjusted(2, 6, -2, -2)
         if len(self.values) < 2:
             return
-        top = self.maximum or max(self.values) or 1.0
+        top = self.maximum or (max(self.values) * 1.15) or 1.0
         step = r.width() / (HISTORY - 1)
         x0 = r.right() - step * (len(self.values) - 1)
-        pts = [QPointF(x0 + i * step, r.bottom() - min(1.0, v / top) * (r.height() - 4)) for i, v in
-               enumerate(self.values)]
+        pts = [QPointF(x0 + i * step, r.bottom() - min(1.0, v / top) * r.height()) for i, v in enumerate(self.values)]
         path = QPainterPath(pts[0])
         for pt in pts[1:]:
             path.lineTo(pt)
         fill = QPainterPath(path)
         fill.lineTo(pts[-1].x(), r.bottom())
         fill.lineTo(pts[0].x(), r.bottom())
-        c = QColor(self.color)
-        c.setAlpha(40)
-        g.fillPath(fill, c)
-        g.setPen(QPen(self.color, 1.6))
+        grad = QLinearGradient(0, r.top(), 0, r.bottom())
+        hi, lo = QColor(accent), QColor(accent)
+        hi.setAlpha(90 if not self.compact else 70)
+        lo.setAlpha(0)
+        grad.setColorAt(0, hi)
+        grad.setColorAt(1, lo)
+        g.fillPath(fill, grad)
+        g.setPen(QPen(accent, 1.4 if self.compact else 1.8))
         g.drawPath(path)
+        if not self.compact:                           # the live end-point
+            halo = QColor(accent)
+            halo.setAlpha(60)
+            g.setPen(Qt.NoPen)
+            g.setBrush(halo)
+            g.drawEllipse(pts[-1], 6, 6)
+            g.setBrush(accent)
+            g.drawEllipse(pts[-1], 2.6, 2.6)
 
 
-class Metric(QFrame):
-    """Title, big value, detail line and a graph."""
+class DeviceTile(QFrame):
+    """One device in the Performance list: its sparkline, name and current reading. Click to see it in detail."""
+    clicked = Signal(str)
 
-    def __init__(self, title, maximum=100.0):
+    def __init__(self, key, title, values, maximum=100.0):
         super().__init__()
-        self.setObjectName("Panel")
+        self.key = key
+        self.setObjectName("DeviceTile")
+        self.setCursor(Qt.PointingHandCursor)
+        h = QHBoxLayout(self)
+        h.setContentsMargins(10, 8, 12, 8)
+        h.setSpacing(12)
+        self.graph = Graph(values, maximum, compact=True)
+        self.graph.setFixedSize(68, 40)
+        h.addWidget(self.graph)
+        col = QVBoxLayout()
+        col.setSpacing(1)
+        self.title = QLabel(title)
+        self.title.setStyleSheet("font-weight: 600;")
+        self.sub = QLabel("—")
+        self.sub.setObjectName("Muted")
+        col.addWidget(self.title)
+        col.addWidget(self.sub)
+        h.addLayout(col, 1)
+
+    def set_active(self, on):
+        self.setObjectName("DeviceTileActive" if on else "DeviceTile")
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mousePressEvent(self, e):
+        self.clicked.emit(self.key)
+        super().mousePressEvent(e)
+
+
+class Stat(QWidget):
+    """A small-caps label over a monospace value."""
+
+    def __init__(self, label):
+        super().__init__()
         v = QVBoxLayout(self)
-        v.setContentsMargins(14, 12, 14, 12)
-        v.setSpacing(4)
-        head = QHBoxLayout()
-        t = QLabel(title)
-        t.setObjectName("CardTitle")
-        head.addWidget(t)
-        head.addStretch()
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(2)
+        lab = QLabel(label.upper())
+        lab.setObjectName("StatLabel")
+        f = lab.font()
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 1.0)
+        lab.setFont(f)
         self.value = QLabel("—")
-        self.value.setStyleSheet("font-size: 18px; font-weight: 600;")
-        head.addWidget(self.value)
-        v.addLayout(head)
-        self.detail = QLabel("")
-        self.detail.setObjectName("Muted")
-        self.detail.setWordWrap(True)
-        self.detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        v.addWidget(self.detail)
-        self.graph = Graph(maximum)
-        v.addWidget(self.graph)
+        self.value.setObjectName("ReadoutSmall")
+        self.value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        v.addWidget(lab)
+        v.addWidget(self.value)
 
 
 class ProcessModel(QAbstractTableModel):
@@ -116,6 +183,28 @@ class ProcessModel(QAbstractTableModel):
     def __init__(self):
         super().__init__()
         self.rows = []
+        self.totals = {}                              # column key -> "23 %" shown above the column name
+        self.ncpu = max(1, os.cpu_count() or 1)
+        self.ram = 0
+        try:
+            import psutil
+            self.ram = psutil.virtual_memory().total
+        except Exception:
+            pass
+
+    def set_totals(self, totals):
+        self.totals = totals
+        self.headerDataChanged.emit(Qt.Horizontal, 0, len(self.COLS) - 1)
+
+    def heat(self, p, key) -> float:
+        """How hard a process works this resource, 0..1, for the cell's orange tint."""
+        if key == "cpu":
+            return p["cpu"] / self.ncpu / 25.0         # a quarter of the whole machine is full heat
+        if key == "memory" and self.ram:
+            return p["memory"] / self.ram / 0.08       # 8 % of RAM is full heat
+        if key == "disk" and p["disk_read"] is not None:
+            return ((p["disk_read"] or 0) + (p["disk_write"] or 0)) / (20 * 2 ** 20)
+        return 0.0
 
     def set_rows(self, rows):
         self.beginResetModel()
@@ -130,15 +219,20 @@ class ProcessModel(QAbstractTableModel):
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self.COLS[section][0]
+            name, key = self.COLS[section]
+            return f"{self.totals[key]}\n{name}" if key in self.totals else name
+        if orientation == Qt.Horizontal and role == Qt.TextAlignmentRole:
+            key = self.COLS[section][1]
+            return int((Qt.AlignRight if key in ("pid", "cpu", "memory", "disk", "threads") else Qt.AlignLeft)
+                       | Qt.AlignBottom)
         return None
 
     def data(self, index, role=Qt.DisplayRole):
         p = self.rows[index.row()]
         key = self.COLS[index.column()][1]
         if role == Qt.DisplayRole:
-            if key == "cpu":
-                return f"{p['cpu']:.1f} %"
+            if key == "cpu":                          # share of the whole machine, like the total above it
+                return f"{p['cpu'] / self.ncpu:.1f} %"
             if key == "memory":
                 return human_bytes(p["memory"])
             if key == "disk":
@@ -156,9 +250,24 @@ class ProcessModel(QAbstractTableModel):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         if role == Qt.ToolTipRole:
             return p["command"] or p["name"]
-        if role == Qt.ForegroundRole and p["critical"]:
+        if role == Qt.ForegroundRole and p["critical"] and key == "name":
             return QColor(_palette().warning)
+        if role == Qt.BackgroundRole and key in ("cpu", "memory", "disk"):
+            t = self.heat(p, key)
+            return _tint(_palette().accent, t) if t > 0.02 else None
+        if role == Qt.FontRole and key in ("pid", "cpu", "memory", "disk", "threads"):
+            return _mono()
         return None
+
+
+class _HeatDelegate(QStyledItemDelegate):
+    """Paints the model's heat tint under the text (the stylesheet's item rule would otherwise hide it)."""
+
+    def paint(self, painter, option, index):
+        bg = index.data(Qt.BackgroundRole)
+        if isinstance(bg, QColor):
+            painter.fillRect(option.rect.adjusted(1, 1, -1, -1), bg)
+        super().paint(painter, option, index)
 
 
 class _Sort(QSortFilterProxyModel):
@@ -209,21 +318,22 @@ def _page(title, sub=""):
 class TaskManager(QMainWindow):
     def __init__(self):
         super().__init__()
+        from ui.components.side_rail import SideRail
         self.setWindowTitle("SAINT Task Manager")
-        self.resize(1080, 700)
+        self.resize(1160, 740)
         self.procs = []
         self.sampler = sysinfo.ProcessSampler()
         self.rates = sysinfo.RateSampler()
+        self.latest = {}
         root = QWidget()
         h = QHBoxLayout(root)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
-        self.nav = QListWidget()
-        self.nav.setObjectName("SideNav")
-        self.nav.setFixedWidth(190)
-        self.nav.addItems(PAGES)
+        self.rail = SideRail("SAINT · Halo", "Task Manager", [(p, PAGE_ICONS[p]) for p in PAGES],
+                             footer="Ctrl+Shift+Esc opens this anywhere")
+        self.nav = self.rail.nav
         self.stack = QStackedWidget()
-        h.addWidget(self.nav)
+        h.addWidget(self.rail)
         h.addWidget(self.stack, 1)
         self.setCentralWidget(root)
         builders = [self._build_processes, self._build_performance, self._build_history, self._build_startup,
@@ -266,10 +376,10 @@ class TaskManager(QMainWindow):
 
     # ---------------------------------------------------------------- processes
     def _build_processes(self):
-        w, v = _page("Processes", "Everything running. Orange names keep the desktop or system alive.")
+        w, v = _page("Processes", "Busier cells glow brighter. Names in amber keep the desktop or system running.")
         bar = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Search by name, PID or command")
+        self.search.setPlaceholderText("Search by name, PID or command   (Ctrl+F)")
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(lambda _t: self._refresh_processes())
         bar.addWidget(self.search, 1)
@@ -277,25 +387,37 @@ class TaskManager(QMainWindow):
         self.only_mine.setChecked(True)
         self.only_mine.toggled.connect(lambda _c: self._refresh_processes())
         bar.addWidget(self.only_mine)
-        self.end_btn = QPushButton("End task")
-        self.end_btn.clicked.connect(self._end_selected)
         self.kill_btn = QPushButton("End now")
+        self.kill_btn.setObjectName("Ghost")
         self.kill_btn.setToolTip("Force it (SIGKILL): unsaved work in that app is lost")
         self.kill_btn.clicked.connect(lambda: self._end_selected(force=True))
-        bar.addWidget(self.end_btn)
+        self.end_btn = QPushButton("End task")
+        self.end_btn.setObjectName("Primary")
+        self.end_btn.setToolTip("Ask it to quit (Delete)")
+        self.end_btn.clicked.connect(self._end_selected)
         bar.addWidget(self.kill_btn)
+        bar.addWidget(self.end_btn)
         v.addLayout(bar)
         self.model = ProcessModel()
         self.proxy = _Sort()
         self.proxy.setSourceModel(self.model)
         self.table = QTableView()
+        self.table.setObjectName("ProcTable")
+        self.table.setItemDelegate(_HeatDelegate(self.table))
+        self.table.setStyleSheet("QHeaderView::section { padding-right: 18px; }")
         self.table.setModel(self.proxy)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(4, Qt.DescendingOrder)
         self.table.verticalHeader().hide()
+        self.table.verticalHeader().setDefaultSectionSize(30)
+        self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        head = self.table.horizontalHeader()
+        head.setMinimumHeight(46)
+        head.setSectionResizeMode(0, QHeaderView.Stretch)
+        for col, width in ((1, 76), (2, 110), (3, 90), (4, 86), (5, 100), (6, 100), (7, 76)):
+            self.table.setColumnWidth(col, width)
         v.addWidget(self.table, 1)
         self.proc_status = QLabel("")
         self.proc_status.setObjectName("Faint")
@@ -312,14 +434,17 @@ class TaskManager(QMainWindow):
     def _refresh_processes(self):
         sel = self._selected_pid()
         rows = sysinfo.filter_processes(self.procs, self.search.text(), self._me() if self.only_mine.isChecked() else "")
+        lt = self.latest
+        if lt:
+            self.model.set_totals({"cpu": f"{lt['cpu']:.0f} %", "memory": f"{lt['mem']:.0f} %",
+                                   "disk": human_bytes(lt["disk"], True)})
         self.model.set_rows(rows)
         if sel is not None:
             for r in range(self.proxy.rowCount()):
                 if self.proxy.data(self.proxy.index(r, 1)) == str(sel):
                     self.table.selectRow(r)
                     break
-        cpu = sum(p["cpu"] for p in self.procs if p["pid"] != 0) / max(1, os.cpu_count() or 1)   # pid 0: idle
-        self.proc_status.setText(f"{len(rows)} shown of {len(self.procs)} processes · CPU {cpu:.0f} %")
+        self.proc_status.setText(f"{len(rows)} shown of {len(self.procs)} processes")
 
     def _selected_pid(self):
         idx = self.table.selectionModel().selectedRows() if hasattr(self, "table") else []
@@ -353,86 +478,179 @@ class TaskManager(QMainWindow):
 
     # ---------------------------------------------------------------- performance
     def _build_performance(self):
-        w, v = _page("Performance", "Live use of each part of this computer. Values a driver doesn't report "
-                                    "show as “not available”.")
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        self.perf_grid = QGridLayout(inner)
-        self.perf_grid.setSpacing(12)
-        self.perf_grid.setColumnStretch(0, 1)
-        self.perf_grid.setColumnStretch(1, 1)
-        self.m_cpu = Metric("CPU")
-        self.m_mem = Metric("Memory")
-        self.perf_grid.addWidget(self.m_cpu, 0, 0)
-        self.perf_grid.addWidget(self.m_mem, 0, 1)
-        self.m_gpu, self.m_disk, self.m_net = {}, {}, {}
-        scroll.setWidget(inner)
-        v.addWidget(scroll, 1)
+        """Devices down the left, each with its sparkline; the chosen one large on the right."""
+        w = QWidget()
+        h = QHBoxLayout(w)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+        left = QScrollArea()
+        left.setWidgetResizable(True)
+        left.setFrameShape(QFrame.NoFrame)
+        left.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        left.setFixedWidth(250)
+        tiles = QWidget()
+        self.tile_box = QVBoxLayout(tiles)
+        self.tile_box.setContentsMargins(14, 20, 6, 20)
+        self.tile_box.setSpacing(4)
+        self.tile_box.addStretch()
+        left.setWidget(tiles)
+        h.addWidget(left)
+        rule = QFrame()
+        rule.setFixedWidth(1)
+        rule.setStyleSheet(f"background: {_palette().border};")
+        h.addWidget(rule)
+
+        detail = QWidget()
+        v = QVBoxLayout(detail)
+        v.setContentsMargins(28, 22, 28, 22)
+        v.setSpacing(14)
+        top = QHBoxLayout()
+        names = QVBoxLayout()
+        names.setSpacing(2)
+        self.d_title = QLabel("CPU")
+        self.d_title.setObjectName("PageTitle")
+        self.d_model = QLabel("")
+        self.d_model.setObjectName("Muted")
+        self.d_model.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        names.addWidget(self.d_title)
+        names.addWidget(self.d_model)
+        top.addLayout(names, 1)
+        self.d_value = QLabel("—")
+        self.d_value.setObjectName("Readout")
+        self.d_value.setAlignment(Qt.AlignRight | Qt.AlignBottom)
+        top.addWidget(self.d_value)
+        v.addLayout(top)
+        self.d_axis = QLabel("")
+        self.d_axis.setObjectName("StatLabel")
+        v.addWidget(self.d_axis)
+        self.d_graph = Graph()
+        v.addWidget(self.d_graph, 1)
+        self.d_stats = QGridLayout()
+        self.d_stats.setHorizontalSpacing(28)
+        self.d_stats.setVerticalSpacing(14)
+        v.addLayout(self.d_stats)
+        h.addWidget(detail, 1)
+
+        self.devices = {}
+        self.selected = "cpu"
         self.cpu_static = sysinfo.cpu_info()
         self._gpu_at = 0.0
         self._gpus = []
+        self._device("cpu", "CPU")
+        self._device("mem", "Memory")
+        self._select("cpu")
         return w
 
-    def _metric(self, store, key, title, maximum=100.0):
-        if key not in store:
-            m = Metric(title, maximum)
-            n = 2 + len(self.m_gpu) + len(self.m_disk) + len(self.m_net)
-            self.perf_grid.addWidget(m, n // 2, n % 2)
-            store[key] = m
-        return store[key]
+    def _device(self, key, title, maximum=100.0):
+        if key not in self.devices:
+            values = deque(maxlen=HISTORY)
+            tile = DeviceTile(key, title, values, maximum)
+            tile.clicked.connect(self._select)
+            self.tile_box.insertWidget(self.tile_box.count() - 1, tile)
+            self.devices[key] = {"title": title, "values": values, "max": maximum, "tile": tile, "model": "",
+                                 "value": "—", "stats": [], "axis": ""}
+        return self.devices[key]
+
+    def _select(self, key):
+        self.selected = key
+        for k, d in self.devices.items():
+            d["tile"].set_active(k == key)
+        d = self.devices[key]
+        self.d_graph.values = d["values"]
+        self.d_graph.maximum = d["max"]
+        self._show_detail()
+
+    def _show_detail(self):
+        d = self.devices[self.selected]
+        self.d_title.setText(d["title"])
+        self.d_model.setText(d["model"])
+        self.d_value.setText(d["value"])
+        self.d_axis.setText(d["axis"])
+        if [s for s, _ in d["stats"]] != getattr(self, "_stat_keys", None):
+            while self.d_stats.count():
+                item = self.d_stats.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self._stat_widgets = []
+            for i, (label, _val) in enumerate(d["stats"]):
+                s = Stat(label)
+                self.d_stats.addWidget(s, i // 4, i % 4)
+                self._stat_widgets.append(s)
+            self._stat_keys = [s for s, _ in d["stats"]]
+        for s, (_label, val) in zip(self._stat_widgets, d["stats"]):
+            s.value.setText(val)
+        self.d_graph.update()
+
+    def _set(self, key, value, sub, model, stats, axis):
+        d = self.devices[key]
+        d.update(value=value, model=model, stats=stats, axis=axis)
+        d["tile"].sub.setText(sub)
+        d["tile"].graph.update()
 
     def _refresh_performance(self, visible=True):
         import psutil
         cpu = psutil.cpu_percent()
-        self.m_cpu.graph.push(cpu)
         mem = sysinfo.memory()
-        self.m_mem.graph.push(mem["percent"])
         rates = self.rates.sample()
-        for name, d in rates["disks"].items():
-            self._metric(self.m_disk, name, f"Disk {name}").graph.push(d["busy"] or 0)
-        for name, n in rates["networks"].items():
-            if n["up"]:
-                self._metric(self.m_net, name, f"Network {name}", maximum=0).graph.push(
-                    ((n["recv"] or 0) + (n["sent"] or 0)) / 1024)
         now = time.monotonic()
         if now - self._gpu_at > 4:                    # nvidia-smi is slow-ish: every 4 s is plenty
             self._gpu_at, self._gpus = now, sysinfo.gpus()
-        for i, g in enumerate(self._gpus):
-            self._metric(self.m_gpu, i, f"GPU {i}").graph.push(g["percent"] or 0)
-        if not visible:
-            return
+        disk_total = sum((d["read"] or 0) + (d["write"] or 0) for d in rates["disks"].values())
+        self.latest = {"cpu": cpu, "mem": mem["percent"], "disk": disk_total}
+
         c = self.cpu_static
         freq = psutil.cpu_freq()
         temp = sysinfo.cpu_temp()
-        self.m_cpu.value.setText(f"{cpu:.0f} %")
-        self.m_cpu.detail.setText(
-            f"{c['model']}\n{c['cores']} cores · {c['threads']} threads · "
-            f"{f'{freq.current / 1000:.2f} GHz' if freq else 'speed not available'} · "
-            f"{f'{temp} °C' if temp is not None else 'temperature not available'}")
-        self.m_mem.value.setText(f"{mem['percent']:.0f} %")
-        self.m_mem.detail.setText(f"{human_bytes(mem['used'])} of {human_bytes(mem['total'])} in use · "
-                                  f"{human_bytes(mem['available'])} available\nSwap {human_bytes(mem['swap_used'])} of "
-                                  f"{human_bytes(mem['swap_total'])}")
-        for name, d in rates["disks"].items():
-            m = self.m_disk[name]
-            m.value.setText("—" if d["busy"] is None else f"{d['busy']:.0f} %")
-            m.detail.setText(f"Read {human_bytes(d['read'], True)} · Write {human_bytes(d['write'], True)}")
-        for name, n in rates["networks"].items():
-            if name in self.m_net:
-                m = self.m_net[name]
-                m.value.setText(human_bytes((n["recv"] or 0) + (n["sent"] or 0), True))
-                m.detail.setText(f"Receive {human_bytes(n['recv'], True)} · Send {human_bytes(n['sent'], True)}"
-                                 + (f" · link {n['speed_mbps']} Mb/s" if n["speed_mbps"] else ""))
+        speed = f"{freq.current / 1000:.2f} GHz" if freq else "not available"
+        self.devices["cpu"]["values"].append(cpu)
+        self._set("cpu", f"{cpu:.0f}%", f"{cpu:.0f}%  ·  {speed}", c["model"],
+                  [("Utilization", f"{cpu:.0f} %"), ("Speed", speed),
+                   ("Temperature", f"{temp} °C" if temp is not None else "not available"),
+                   ("Processes", str(len(self.procs) or len(psutil.pids()))),
+                   ("Cores", str(c["cores"])), ("Threads", str(c["threads"])),
+                   ("Up for", human_duration(time.time() - psutil.boot_time()))],
+                  "% utilization over 2 minutes")
+        self.devices["mem"]["values"].append(mem["percent"])
+        self._set("mem", f"{mem['percent']:.0f}%",
+                  f"{human_bytes(mem['used'])} of {human_bytes(mem['total'])}",
+                  f"{human_bytes(mem['total'])} installed",
+                  [("In use", human_bytes(mem["used"])), ("Available", human_bytes(mem["available"])),
+                   ("Swap used", human_bytes(mem["swap_used"])), ("Swap size", human_bytes(mem["swap_total"]))],
+                  "% of memory in use over 2 minutes")
         for i, g in enumerate(self._gpus):
-            m = self.m_gpu[i]
-            m.value.setText("—" if g["percent"] is None else f"{g['percent']:.0f} %")
-            mem_txt = (f"{human_bytes(g['memory_used'])} of {human_bytes(g['memory_total'])} video memory"
-                       if g["memory_total"] else "video memory not reported")
-            temp_txt = f"{g['temp_c']} °C" if g["temp_c"] is not None else "temperature not available"
-            m.detail.setText(f"{g['name']} ({g['driver'] or 'driver unknown'})\n{mem_txt} · {temp_txt}")
+            key = f"gpu{i}"
+            self._device(key, f"GPU {i}")["values"].append(g["percent"] or 0)
+            pct = "—" if g["percent"] is None else f"{g['percent']:.0f}%"
+            vram = (f"{human_bytes(g['memory_used'])} / {human_bytes(g['memory_total'])}" if g["memory_total"]
+                    else "not reported")
+            self._set(key, pct, f"{pct}  ·  {g['temp_c']} °C" if g["temp_c"] is not None else pct,
+                      f"{g['name']}  ·  {g['driver'] or 'driver unknown'}",
+                      [("Utilization", pct.replace("%", " %")), ("Video memory", vram),
+                       ("Temperature", f"{g['temp_c']} °C" if g["temp_c"] is not None else "not available"),
+                       ("Vendor", g["vendor"])],
+                      "% utilization over 2 minutes")
+        for name, d in rates["disks"].items():
+            key = f"disk:{name}"
+            self._device(key, f"Disk {name}")["values"].append(d["busy"] or 0)
+            busy = "—" if d["busy"] is None else f"{d['busy']:.0f}%"
+            self._set(key, busy, f"{busy}  ·  R {human_bytes(d['read'], True)}", f"/dev/{name}" if os.name != "nt" else name,
+                      [("Active time", busy.replace("%", " %")), ("Read", human_bytes(d["read"], True)),
+                       ("Write", human_bytes(d["write"], True))],
+                      "% of time the disk was busy over 2 minutes")
+        for name, n in rates["networks"].items():
+            if not n["up"]:
+                continue
+            key = f"net:{name}"
+            total = (n["recv"] or 0) + (n["sent"] or 0)
+            self._device(key, name, maximum=0)["values"].append(total)
+            self._set(key, human_bytes(total, True),
+                      f"↓ {human_bytes(n['recv'], True)}  ↑ {human_bytes(n['sent'], True)}",
+                      f"Link {n['speed_mbps']} Mb/s" if n["speed_mbps"] else "link speed not reported",
+                      [("Receive", human_bytes(n["recv"], True)), ("Send", human_bytes(n["sent"], True)),
+                       ("Link speed", f"{n['speed_mbps']} Mb/s" if n["speed_mbps"] else "not reported")],
+                      "throughput over 2 minutes (scale follows the peak)")
+        if visible:
+            self._show_detail()
 
     # ---------------------------------------------------------------- app history
     def _build_history(self):

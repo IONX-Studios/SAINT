@@ -30,6 +30,8 @@ class HaloPage(Page):
         back.setToolTip("Back to the page you came from")
         back.clicked.connect(self._back)
         self.root.insertWidget(0, back, 0, Qt.AlignLeft)
+        self.title.hide()                             # the Halo rail below carries the name
+        self.subtitle.hide()
 
     def _build(self):
         if self._cc is not None:

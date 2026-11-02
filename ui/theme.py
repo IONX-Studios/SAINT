@@ -260,11 +260,30 @@ QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 QScrollBar:horizontal {{ background: transparent; height: 8px; margin: 2px; }}
 QScrollBar::handle:horizontal {{ background: {p.border_strong}; border-radius: 3px; min-width: 30px; }}
-QTableWidget, QTreeWidget, QListWidget {{
+QTableWidget, QTableView, QTreeWidget, QListWidget {{
     background-color: {p.surface}; alternate-background-color: {p.surface}; border: 1px solid {p.border};
-    border-radius: 10px; gridline-color: transparent;
+    border-radius: 10px; gridline-color: transparent; outline: 0;
 }}
-QTableWidget::item, QListWidget::item {{ padding: 6px 4px; border-bottom: 1px solid {p.border}; }}
+QTableWidget::item, QTableView::item, QListWidget::item {{ padding: 6px 4px; border-bottom: 1px solid {p.border}; }}
+QTableView::item:selected {{ background: {p.accent_soft}; color: {p.text}; }}
+/* Halo apps (Task Manager, Control Center): one left rail, the current page marked in SAINT orange */
+QFrame#SideRail {{ background: {p.sidebar}; border: none; border-right: 1px solid {p.border}; }}
+QListWidget#SideNav {{ background: transparent; border: none; border-radius: 0; padding: 0px 8px; }}
+QListWidget#SideNav::item {{ padding: 8px 10px; margin: 1px 0px; border: none; border-left: 3px solid transparent;
+    border-radius: 0px; color: {p.muted}; }}
+QListWidget#SideNav::item:hover {{ background: {hover}; color: {p.text}; }}
+QListWidget#SideNav::item:selected {{ background: {p.accent_soft}; color: {p.text}; border-left: 3px solid {p.accent}; }}
+QLabel#RailEyebrow {{ color: {p.accent}; font-size: {fs - 3}px; font-weight: 700; padding: 18px 18px 0px 18px; }}
+QLabel#RailTitle {{ color: {p.text}; font-size: {fs + 3}px; font-weight: 600; padding: 2px 18px 14px 18px; }}
+QLabel#RailFoot {{ color: {p.faint}; font-size: {fs - 3}px; padding: 10px 18px 16px 18px; }}
+QLabel#Readout {{ font-family: "Noto Sans Mono", "Cascadia Mono", Consolas, monospace; font-size: {fs + 12}px;
+    font-weight: 600; color: {p.text}; }}
+QLabel#ReadoutSmall {{ font-family: "Noto Sans Mono", "Cascadia Mono", Consolas, monospace; font-size: {fs + 2}px;
+    font-weight: 600; color: {p.text}; }}
+QLabel#StatLabel {{ color: {p.faint}; font-size: {fs - 3}px; font-weight: 600; }}
+QFrame#DeviceTile {{ background: transparent; border: 1px solid transparent; border-radius: 10px; }}
+QFrame#DeviceTile:hover {{ background: {hover}; }}
+QFrame#DeviceTileActive {{ background: {p.surface}; border: 1px solid {rgba(p.accent, 0.45)}; border-radius: 10px; }}
 QHeaderView {{ background: transparent; }}
 QHeaderView::section {{ background: {p.surface}; color: {p.faint}; border: none; border-bottom: 1px solid {p.border}; padding: 7px 6px; font-weight: 600; font-size: {fs - 2}px; }}
 QTableWidget::item:selected, QListWidget::item:selected {{ background: {p.accent_soft}; color: {p.text}; }}

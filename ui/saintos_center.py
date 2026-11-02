@@ -231,6 +231,10 @@ def run_selftest() -> Dict:
 # --------------------------------------------------------------------------- #
 PAGES = ["Welcome", "Apps", "Service", "AI", "Voice", "Permissions", "Capabilities", "Data", "Diagnostics",
          "Desktop & devices", "Evolve", "Recovery", "Updates"]
+# Icons in the left rail (ui/icons.py names), one per page above.
+PAGE_ICONS = {"Welcome": "home", "Apps": "download", "Service": "power", "AI": "sparkles", "Voice": "mic",
+              "Permissions": "check-circle", "Capabilities": "zap", "Data": "drive", "Diagnostics": "activity",
+              "Desktop & devices": "smartphone", "Evolve": "command", "Recovery": "refresh", "Updates": "arrow-up"}
 
 # Plasma's own settings pages (kcmshell6 <module>), the ones people change most.
 KCMS = [("Wi-Fi & network", "kcm_networkmanagement"), ("Bluetooth", "kcm_bluetooth"), ("Displays", "kcm_kscreen"),
@@ -281,21 +285,20 @@ def build_window(start_page: str = "Welcome"):
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 8)
         t = QLabel(text)
-        t.setObjectName("title")
-        t.setStyleSheet("font-size: 20px; font-weight: 600;")
+        t.setObjectName("PageTitle")
         v.addWidget(t)
         if sub:
             s = QLabel(sub)
+            s.setObjectName("PageSubtitle")
             s.setWordWrap(True)
-            s.setStyleSheet("color: palette(mid);")
             v.addWidget(s)
         return box
 
     def page(title, sub=""):
         w = QWidget()
         v = QVBoxLayout(w)
-        v.setContentsMargins(28, 24, 28, 24)
-        v.setSpacing(10)
+        v.setContentsMargins(32, 26, 32, 26)
+        v.setSpacing(12)
         v.addWidget(heading(title, sub))
         return w, v
 
@@ -307,11 +310,11 @@ def build_window(start_page: str = "Welcome"):
     root = QWidget()
     h = QHBoxLayout(root)
     h.setContentsMargins(0, 0, 0, 0)
-    nav = QListWidget()
-    nav.setFixedWidth(190)
-    nav.addItems(PAGES)
+    from ui.components.side_rail import SideRail
+    rail = SideRail("SAINT · Halo", "Control Center" if not is_halo() else "Halo", [(p, PAGE_ICONS[p]) for p in PAGES])
+    nav = rail.nav
     stack = QStackedWidget()
-    h.addWidget(nav)
+    h.addWidget(rail)
     h.addWidget(stack, 1)
     win.setCentralWidget(root)
 
@@ -496,7 +499,7 @@ def build_window(start_page: str = "Welcome"):
                   "kept in KWallet (Secret Service), never in the config file. Spending limits are planned "
                   "(docs/SAINTOS_RELEASE_STATUS.md).")
     note.setWordWrap(True)
-    note.setStyleSheet("color: palette(mid);")
+    note.setObjectName("Muted")
     v.addWidget(note)
     btns = QHBoxLayout()
     detect = QPushButton("Detect local models")
@@ -571,10 +574,18 @@ def build_window(start_page: str = "Welcome"):
     form.addRow("", auto)
     v.addLayout(form)
     # What SAINT really speaks and hears with, from files and tests (core/voice_check.py), never the config alone.
+    from PySide6.QtWidgets import QFrame, QGridLayout as _Grid
+    sheet = QFrame()
+    sheet.setObjectName("Panel")
+    vgrid = _Grid(sheet)
+    vgrid.setContentsMargins(18, 14, 18, 14)
+    vgrid.setHorizontalSpacing(18)
+    vgrid.setVerticalSpacing(9)
+    vgrid.setColumnStretch(2, 1)
     vstat = QLabel("Checking the voice system…")
-    vstat.setWordWrap(True)
-    vstat.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    v.addWidget(vstat)
+    vstat.setObjectName("Muted")
+    vgrid.addWidget(vstat, 0, 0, 1, 3)
+    v.addWidget(sheet)
 
     def voice_service():
         try:
@@ -583,11 +594,38 @@ def build_window(start_page: str = "Welcome"):
         except Exception:
             return None
 
+    def voice_tone(text):
+        """A state mark for a status line: green when it's proven, red when it's broken or a fallback."""
+        low = text.lower()
+        if any(w in low for w in ("missing", "failed", "not kokoro", "fallback", "none (", "unavailable",
+                                  "recorded silence")):
+            return "danger"
+        if low.startswith(("passed", "kokoro (", "kokoro ready")) or "(present)" in low or "(downloaded)" in low:
+            return "success"
+        return ""
+
     def show_voice(res):
+        from ui.theme import current_palette
+        p = current_palette()
+        while vgrid.count():
+            item = vgrid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         if isinstance(res, Exception):
-            vstat.setText(f"Couldn't read the voice system: {res}")
+            vgrid.addWidget(QLabel(f"Couldn't read the voice system: {res}"), 0, 0, 1, 3)
             return
-        vstat.setText("\n".join(f"{k}: {val}" for k, val in res.items()))
+        for row, (k, val) in enumerate(res.items()):
+            tone = voice_tone(str(val))
+            dot = QLabel("●" if tone else "○")
+            dot.setStyleSheet(f"color: {getattr(p, tone) if tone else p.faint}; font-size: 10px;")
+            key = QLabel(k.upper())
+            key.setObjectName("StatLabel")
+            value = QLabel(str(val))
+            value.setWordWrap(True)
+            value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            vgrid.addWidget(dot, row, 0)
+            vgrid.addWidget(key, row, 1)
+            vgrid.addWidget(value, row, 2)
 
     def refresh_voice():
         from core import voice_check

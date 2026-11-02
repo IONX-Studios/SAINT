@@ -10,7 +10,10 @@ arch=(x86_64)
 url="https://github.com/IONX-Studios/SAINT"
 license=(LicenseRef-SAINT)
 depends=(portaudio espeak-ng libxkbcommon xcb-util-cursor qt6-tools qt6-websockets wl-clipboard playerctl libnotify
-         xdg-utils tesseract tesseract-data-eng pciutils)
+         xdg-utils tesseract tesseract-data-eng pciutils
+         # Halo Remote host (modules/remote_desktop): runs on Arch's python with GStreamer WebRTC, not in the venv
+         python python-gobject gst-python python-cryptography python-keyring libsoup3 libnice kdialog
+         gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-plugin-pipewire)
 makedepends=(uv)
 options=(!strip !debug !lto)
 _spacy_model=en_core_web_sm-3.8.0-py3-none-any.whl
@@ -114,6 +117,8 @@ PY
   install -Dm0755 -t "$pkgdir/usr/bin" "$fs"/usr/bin/{saint,saint-taskmgr,saintos-control,saintos-apps,saintos-diagnose}
   install -Dm0644 -t "$pkgdir/usr/share/applications" "$fs"/usr/share/applications/*.desktop
   install -Dm0644 -t "$pkgdir/usr/lib/systemd/user" "$fs/usr/lib/systemd/user/saint.service"
+  # Halo Remote host: installed, off until turned on in SAINT (Devices -> Remote desktop).
+  sed 's#@SAINT_ROOT@#/opt/saint/app#g' "$srcdir/app/packaging/linux/systemd/halo-remote.service.in"     | install -Dm0644 /dev/stdin "$pkgdir/usr/lib/systemd/user/halo-remote.service"
   install -Dm0644 -t "$pkgdir/usr/lib/systemd/system" "$fs"/usr/lib/systemd/system/{saintos-boot-report,saint-ollama-model}.service
   install -Dm0755 -t "$pkgdir/usr/libexec/saintos" "$fs"/usr/libexec/saintos/{boot-report,firstrun,ollama-model}
   install -Dm0644 -t "$pkgdir/etc/xdg/autostart" "$fs/etc/xdg/autostart/saintos-firstrun.desktop"

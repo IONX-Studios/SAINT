@@ -101,6 +101,9 @@ check "boot doesn't wait for the network" test ! -e "$S/network-online.target.wa
 check "a timezone is set (/etc/localtime)" test -L "$R/etc/localtime"
 grep -q '^X-KDE-Shortcuts=Alt+`' "$R/usr/share/kglobalaccel/saint-overlay.desktop" && pass "Alt+\` opens SAINT's overlay" || fail "overlay shortcut missing"
 grep -q '^Walk Through Windows of Current Application=none,' "$R/etc/xdg/kglobalshortcutsrc" && pass "KWin doesn't take Alt+\`" || fail "KWin's window switcher still owns Alt+\`"
+grep -q '^ColorScheme=HaloDark' "$R/etc/xdg/kdeglobals" && [ -s "$R/usr/share/color-schemes/HaloLight.colors" ] && [ -s "$R/usr/share/plasma/look-and-feel/org.saintos.desktop.light/contents/defaults" ] && pass "Halo Dark default, Halo Light available" || fail "Halo colour schemes or look-and-feel missing"
+for w in halo music; do [ -s "$R/usr/share/plasma/plasmoids/org.saintos.$w/contents/ui/main.qml" ] && pass "widget org.saintos.$w" || fail "widget org.saintos.$w missing"; done
+grep -q '^X-KDE-Shortcuts=Ctrl+Shift+Esc' "$R/usr/share/kglobalaccel/saint-taskmgr.desktop" && [ -x "$R/usr/bin/saint-taskmgr" ] && pass "Ctrl+Shift+Esc opens SAINT Task Manager" || fail "Task Manager launcher or shortcut missing"
 [ -s "$R/opt/saint/app/data/tts/kokoro-onnx/kokoro-v1.0.onnx" ] && pass "Kokoro voice ships in the image" || fail "Kokoro model missing from /opt/saint"
 grep -q 'applications:saint.desktop' "$R/usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/saintos-defaults.js" \
   && pass "SAINT pinned once on the taskbar" || fail "SAINT isn't pinned"

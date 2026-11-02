@@ -72,7 +72,7 @@ import importlib, sys
 mods = ["PySide6.QtWidgets", "PySide6.QtSvg", "numpy", "requests", "psutil", "sounddevice", "soundfile",
         "onnxruntime", "faster_whisper", "kokoro_onnx", "misaki.en", "en_core_web_sm", "keyring", "secretstorage",
         "jeepney", "segno", "zeroconf", "cryptography", "PIL", "core.paths", "core.platform_caps", "core.saintos_apps",
-        "modules.desktop.linux.kwin", "ui.saintos_center"]
+        "modules.desktop.linux.kwin", "ui.saintos_center", "ui.taskmanager", "core.sysinfo"]
 bad = []
 for m in mods:
     try:
@@ -111,7 +111,7 @@ PY
 
   # Launchers, menu entries, services (shared with the Fedora image: packaging/linux/rootfs).
   local fs="$srcdir/app/packaging/linux/rootfs"
-  install -Dm0755 -t "$pkgdir/usr/bin" "$fs"/usr/bin/{saint,saintos-control,saintos-apps,saintos-diagnose}
+  install -Dm0755 -t "$pkgdir/usr/bin" "$fs"/usr/bin/{saint,saint-taskmgr,saintos-control,saintos-apps,saintos-diagnose}
   install -Dm0644 -t "$pkgdir/usr/share/applications" "$fs"/usr/share/applications/*.desktop
   install -Dm0644 -t "$pkgdir/usr/lib/systemd/user" "$fs/usr/lib/systemd/user/saint.service"
   install -Dm0644 -t "$pkgdir/usr/lib/systemd/system" "$fs"/usr/lib/systemd/system/{saintos-boot-report,saint-ollama-model}.service
@@ -121,14 +121,17 @@ PY
   install -Dm0644 "$srcdir/app/SAINT.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/saint.png"
   # Plasma integration: Alt+` (KGlobalAccel), and the KWin script that places the Halo and the overlay
   # on Wayland and opens SAINT from the top screen edge.
-  install -Dm0644 -t "$pkgdir/usr/share/kglobalaccel" "$fs/usr/share/kglobalaccel/saint-overlay.desktop"
+  install -Dm0644 -t "$pkgdir/usr/share/kglobalaccel" "$fs"/usr/share/kglobalaccel/{saint-overlay,saint-taskmgr}.desktop
   cp -a "$fs/usr/share/kwin" "$pkgdir/usr/share/kwin"
   # The SAINT wallpaper that reacts to SAINT's voice (follows ws://127.0.0.1:47811, core/state_socket.py).
   install -d "$pkgdir/usr/share/plasma/wallpapers"
   cp -a "$fs/usr/share/plasma/wallpapers/org.saintos.wallpaper" "$pkgdir/usr/share/plasma/wallpapers/"
-  # The SAINT desktop widget.
+  # Desktop widgets: SAINT, the Halo (movable, resizable ring) and SAINT Music (any MPRIS player).
   install -d "$pkgdir/usr/share/plasma/plasmoids"
-  cp -a "$fs/usr/share/plasma/plasmoids/org.saintos.saint" "$pkgdir/usr/share/plasma/plasmoids/"
+  local w
+  for w in plasmoids/org.saintos.saint plasmoids/org.saintos.halo plasmoids/org.saintos.music; do
+    cp -a "$fs/usr/share/plasma/$w" "$pkgdir/usr/share/plasma/plasmoids/"
+  done
   # Plasma gives Alt+` to KWin's "Walk Through Windows of Current Application" (a window switcher), which
   # takes the key before SAINT's binding can: Alt+` then switches windows and the overlay never opens.
   # Halo's default hands Alt+` to SAINT; the switcher keeps Alt+~ (reverse) and stays in Settings > Shortcuts.
@@ -138,6 +141,9 @@ Walk Through Windows of Current Application=none,Alt+`,Walk Through Windows of C
 
 [services][saint-overlay.desktop]
 _launch=Alt+`
+
+[services][saint-taskmgr.desktop]
+_launch=Ctrl+Shift+Esc
 EOF
   install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kwinrc" <<'EOF'
 [Plugins]

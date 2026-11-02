@@ -2,6 +2,7 @@
 the Alt+` default and the Kokoro voice shipped in the image."""
 
 import json
+import os
 from collections import namedtuple
 from pathlib import Path
 
@@ -184,3 +185,50 @@ def test_tts_health_reports_the_engine_that_speaks():
     assert health.tts(SimpleNamespace(_engine_type="espeak", _device_info={}))["state"] == health.DEGRADED
     assert health.tts(SimpleNamespace(_engine_type="kokoro", _device_info={}))["state"] == health.WORKING
     assert health.tts(None)["state"] == health.NOT_TESTED
+
+
+# --------------------------------------------------------------------------- build 7: themes, widgets, task manager
+def test_halo_colour_schemes_match_saints_palette():
+    pytest.importorskip("PySide6")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("mcs", ROOT / "packaging/linux/branding/make_color_schemes.py")
+    mcs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mcs)
+    for dark, name in ((True, "HaloDark"), (False, "HaloLight")):
+        shipped = (ROOT / f"packaging/linux/rootfs/usr/share/color-schemes/{name}.colors").read_text(encoding="utf-8")
+        assert shipped.replace("\r\n", "\n") == mcs.scheme(dark), f"{name}.colors is stale: run make_color_schemes.py"
+        assert f"ColorScheme={name}" in shipped and "DecorationFocus=254,170,52" in shipped
+
+
+def test_halo_dark_is_the_default_and_light_is_one_switch_away():
+    lf = ROOT / "packaging/linux/rootfs/usr/share/plasma/look-and-feel"
+    kdeglobals = (ROOT / "packaging/linux/rootfs/etc/xdg/kdeglobals").read_text(encoding="utf-8")
+    assert "ColorScheme=HaloDark" in kdeglobals
+    assert "DefaultDarkLookAndFeel=org.saintos.desktop" in kdeglobals
+    assert "DefaultLightLookAndFeel=org.saintos.desktop.light" in kdeglobals
+    assert "ColorScheme=HaloDark" in (lf / "org.saintos.desktop/contents/defaults").read_text(encoding="utf-8")
+    assert "ColorScheme=HaloLight" in (lf / "org.saintos.desktop.light/contents/defaults").read_text(encoding="utf-8")
+    meta = json.loads((lf / "org.saintos.desktop.light/metadata.json").read_text(encoding="utf-8"))
+    assert meta["KPlugin"]["Id"] == "org.saintos.desktop.light"
+    branding = (ROOT / "packaging/arch/pkgbuilds/halo-branding/PKGBUILD").read_text(encoding="utf-8")
+    assert "Halo{Dark,Light}.colors" in branding and '"Name": "Halo Light"' in branding
+
+
+def test_widgets_and_task_manager_ship_in_the_image():
+    plasmoids = ROOT / "packaging/linux/rootfs/usr/share/plasma/plasmoids"
+    for w in ("halo", "music"):
+        meta = json.loads((plasmoids / f"org.saintos.{w}/metadata.json").read_text(encoding="utf-8"))
+        assert meta["KPlugin"]["Id"] == f"org.saintos.{w}"
+        assert (plasmoids / f"org.saintos.{w}/contents/ui/main.qml").exists()
+    pkg = (ROOT / "packaging/arch/pkgbuilds/saint/PKGBUILD").read_text(encoding="utf-8")
+    assert all(f"plasmoids/org.saintos.{w}" in pkg for w in ("saint", "halo", "music")) and "saint-taskmgr" in pkg
+    assert "[services][saint-taskmgr.desktop]\n_launch=Ctrl+Shift+Esc" in pkg
+    accel = (ROOT / "packaging/linux/rootfs/usr/share/kglobalaccel/saint-taskmgr.desktop").read_text(encoding="utf-8")
+    assert "X-KDE-Shortcuts=Ctrl+Shift+Esc" in accel and "Exec=/usr/bin/saint-taskmgr" in accel
+    launcher = (ROOT / "packaging/linux/rootfs/usr/bin/saint-taskmgr").read_bytes()
+    assert b"\r" not in launcher and b"-m ui.taskmanager" in launcher
+
+
+def test_saint_follows_the_desktop_theme_on_linux():
+    from core import config as cfg
+    assert cfg.DEFAULT_THEME == ("Dark" if os.name == "nt" else "System")

@@ -1,0 +1,7 @@
+#!/usr/bin/bash
+# SAINT Task Manager (Ctrl+Shift+Esc): its own small process, so it opens even when SAINT is busy or stopped.
+set -euo pipefail
+PY=/opt/saint/venv/bin/python
+[ -x "$PY" ] || { echo "SAINT isn't installed correctly: $PY is missing." >&2; exit 1; }
+cd /opt/saint/app
+exec "$PY" -m ui.taskmanager "$@"

@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Category": "Utilities",
+        "Description": "An animated Halo you can place anywhere on the desktop. It follows SAINT when SAINT runs.",
+        "Icon": "saint",
+        "Id": "org.saintos.halo",
+        "License": "GPL-2.0-or-later",
+        "Name": "Halo",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

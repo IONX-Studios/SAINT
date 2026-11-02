@@ -24,9 +24,13 @@ SECRET_KEYS = ("ai.api_key", "web.api_key")
 
 CONFIG_VERSION = 8
 
+# On Linux SAINT follows the desktop's light/dark setting (Halo Dark by default, Halo Light when switched), so
+# Plasma, KDE apps and SAINT always match; Windows keeps SAINT's own dark look unless changed in Settings.
+DEFAULT_THEME = "System" if os.name != "nt" else "Dark"
+
 DEFAULT_CONFIG = {
     "config_version": CONFIG_VERSION,
-    "theme": "Dark",                    # legacy key; mirrored from appearance.theme
+    "theme": DEFAULT_THEME,             # legacy key; mirrored from appearance.theme
     "ai": {
         "provider": "ollama",           # "mock" | "openai" | "ollama"
         "model": "llama3.1",
@@ -214,7 +218,7 @@ DEFAULT_CONFIG = {
     # Appearance
     # ------------------------------------------------------------------
     "appearance": {
-        "theme": "Dark",                  # "Dark" | "Light" | "System"
+        "theme": DEFAULT_THEME,           # "Dark" | "Light" | "System"
         "accent": "#feaa34",             # SAINT orange (from the logo)
         "opacity": 1.0,                   # window opacity 0.6-1.0
         "font_family": "Segoe UI",

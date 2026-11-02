@@ -1,0 +1,14 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [{ "Name": "SAINT" }],
+        "Category": "Multimedia",
+        "Description": "What's playing in any music app: artwork, track, artist, progress, volume and controls",
+        "Icon": "media-playback-start",
+        "Id": "org.saintos.music",
+        "License": "GPL-2.0-or-later",
+        "Name": "SAINT Music",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

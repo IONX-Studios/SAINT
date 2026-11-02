@@ -16,9 +16,10 @@ for (var i = 0; i < all.length; i++) {
     d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
     d.writeConfig("Image", wallpaper);
     d.wallpaperPlugin = "org.saintos.wallpaper";
-    if (i === 0) {                                     // the SAINT widget, top right of the first screen
+    if (i === 0) {                  // the SAINT widget and what's playing, top right of the first screen
         var g = screenGeometry(d.screen);
         d.addWidget("org.saintos.saint", g.width - 380, 48, 340, 130);
+        d.addWidget("org.saintos.music", g.width - 380, 196, 340, 140);
     }
 }
 

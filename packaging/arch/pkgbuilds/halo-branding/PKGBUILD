@@ -92,9 +92,11 @@ EOF
   # Only the look-and-feel and the desktop defaults: the SAINT wallpaper and widget are the saint package's.
   install -d "$pkgdir/usr/share/plasma"
   cp -a "$fs/usr/share/plasma/look-and-feel" "$fs/usr/share/plasma/shells" "$pkgdir/usr/share/plasma/"
-  sed -i -e 's/"Name": "SAINTOS"/"Name": "Halo"/' -e 's/"Description": "SAINTOS:/"Description": "Halo:/' \
-      -e 's/{ "Name": "SAINTOS" }/{ "Name": "Halo" }/' \
-      "$pkgdir/usr/share/plasma/look-and-feel/org.saintos.desktop/metadata.json"
+  sed -i -e 's/"Name": "SAINTOS"/"Name": "Halo Dark"/' -e 's/"Name": "SAINTOS Light"/"Name": "Halo Light"/' \
+      -e 's/"Description": "SAINTOS:/"Description": "Halo:/' -e 's/{ "Name": "SAINTOS" }/{ "Name": "Halo" }/' \
+      "$pkgdir"/usr/share/plasma/look-and-feel/org.saintos.desktop{,.light}/metadata.json
+  # Halo Dark (default) and Halo Light: Plasma colour schemes made from SAINT's palette (make_color_schemes.py).
+  install -Dm0644 -t "$pkgdir/usr/share/color-schemes" "$fs"/usr/share/color-schemes/Halo{Dark,Light}.colors
 
   # Login screen: SDDM's Breeze theme with the Halo wallpaper.
   install -Dm0644 /dev/stdin "$pkgdir/etc/sddm.conf.d/10-halo.conf" <<'EOF'

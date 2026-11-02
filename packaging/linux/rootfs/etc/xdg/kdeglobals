@@ -1,10 +1,12 @@
 [General]
 AccentColor=254,170,52
 accentColorFromWallpaper=false
-ColorScheme=BreezeDark
+ColorScheme=HaloDark
 
 [KDE]
 LookAndFeelPackage=org.saintos.desktop
+DefaultDarkLookAndFeel=org.saintos.desktop
+DefaultLightLookAndFeel=org.saintos.desktop.light
 
 [Sounds]
 Theme=saint

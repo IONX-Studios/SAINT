@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SAINT Task Manager
+Comment=Open SAINT Task Manager from anywhere
+Exec=/usr/bin/saint-taskmgr
+Icon=utilities-system-monitor
+NoDisplay=true
+X-KDE-Shortcuts=Ctrl+Shift+Esc

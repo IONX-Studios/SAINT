@@ -19,6 +19,10 @@
   (`packaging/linux/branding/make_color_schemes.py`), a light/dark look-and-feel pair wired to Plasma's
   light/dark switch, and SAINT following the desktop theme on Linux.
 - ISO validation checks the shortcut, launcher, widgets and themes.
+- **Halo apps redesign** (frontend-design pass, SAINT's palette kept): one shared left rail for Task Manager and
+  Control Center/Halo (icons, current page marked in orange); Task Manager processes heatmap (busy CPU/memory/
+  disk cells tinted), column totals in the header, monospace numbers; Performance as device tiles with
+  sparklines plus a large gridded graph and stat grid; Voice status shown as a sheet with state marks.
 
 
 ## 2026-11-02 — audit and Priority 1 repairs (`halo/arch-rebase`)

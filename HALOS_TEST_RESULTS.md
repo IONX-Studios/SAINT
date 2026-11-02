@@ -26,6 +26,7 @@ Only tests that actually ran are listed. "Not run" is said explicitly.
 
 | Test | Result |
 |---|---|
+| Build #6 ISO | built and validated (ALL CHECKS PASSED, incl. Secure Boot step and Kokoro in image); copied to `dist/halo/build6/`, SHA-256 OK; **not boot-tested** (skipped at user's request, build #7 next) |
 | Build #6 `saint` package: Kokoro synthesis from the packaged files | **passed** — "2.6s of speech in 14.51s" (first run in a VM container, includes ONNX warm-up; speed on real hardware still to measure) |
 
 | Test | Result |

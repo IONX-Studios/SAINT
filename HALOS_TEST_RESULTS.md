@@ -26,6 +26,8 @@ Only tests that actually ran are listed. "Not run" is said explicitly.
 
 | Test | Result |
 |---|---|
+| Build #7 ISO | built and validated (ALL CHECKS PASSED: Task Manager shortcut, Halo/Music widgets, Halo Dark/Light, Alt+`, Kokoro); first copy to Windows failed mid-way (`Invalid cross-device link`, file opened on the Windows side) and left a truncated ISO — the cause of the failed USB write; recopied over SSH via a `.part` file |
+| Merge of Workstream B into `halo/arch-rebase` | 1647 Python tests pass (same 4 old failures), 19 browser-client tests pass; pushed to `origin/halo/arch-rebase` |
 | Build #6 ISO | built and validated (ALL CHECKS PASSED, incl. Secure Boot step and Kokoro in image); copied to `dist/halo/build6/`, SHA-256 OK; **not boot-tested** (skipped at user's request, build #7 next) |
 | Build #6 `saint` package: Kokoro synthesis from the packaged files | **passed** — "2.6s of speech in 14.51s" (first run in a VM container, includes ONNX warm-up; speed on real hardware still to measure) |
 

@@ -9,7 +9,7 @@ Artwork is the publisher's own (Flathub AppStream); an app without any shows its
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPixmap, QRadialGradient
 from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout,
                                QWidget)
 
@@ -104,6 +104,17 @@ def monogram(name: str, size: int) -> QPixmap:
     return out
 
 
+def bundled_icon(result):
+    """The icon shipped with SAINT for an app that has no Flathub entry (data/store-icons), or None."""
+    rel = (result.extra or {}).get("icon_file")
+    if not rel:
+        return None
+    from core.paths import resource_path
+    path = resource_path(*rel.split("/"))
+    pix = QPixmap(str(path)) if path.is_file() else QPixmap()
+    return None if pix.isNull() else pix
+
+
 def art_key(result):
     """(key, flathub id, direct icon url) for a Store result."""
     from core.store_art import flathub_id
@@ -165,9 +176,13 @@ class AppTile(QFrame):
         v.addLayout(bottom)
         self._on_open = on_open
         self._key, fid, url = art_key(result)
+        own = bundled_icon(result)
+        if own is not None:
+            self.icon.setPixmap(rounded(own, self.ICON, self.ICON * 0.22))
         loader = ArtLoader.get()
         loader.loaded.connect(self._art)
-        loader.request(self._key, "icon", fid, url)
+        if own is None:
+            loader.request(self._key, "icon", fid, url)
 
     def _art(self, key, kind, path, meta):
         if key != self._key or kind != "icon":
@@ -212,10 +227,12 @@ class TileGrid(QWidget):
         self.grid.setVerticalSpacing(14)
         self.tiles = []
         self._cols = 0
+        self.max_rows = 0                             # 0 = all; a shelf on the front page shows one row
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
-    def set_tiles(self, tiles):
+    def set_tiles(self, tiles, max_rows: int = 0):
         self.tiles = tiles
+        self.max_rows = max_rows
         self._cols = 0
         self._reflow()
 
@@ -226,10 +243,14 @@ class TileGrid(QWidget):
         self._cols = cols
         while self.grid.count():
             self.grid.takeAt(0)
-        for i, t in enumerate(self.tiles):
+        shown = self.tiles[:cols * self.max_rows] if self.max_rows else self.tiles
+        for t in self.tiles[len(shown):]:
+            t.hide()
+        for i, t in enumerate(shown):
+            t.show()
             self.grid.addWidget(t, i // cols, i % cols, Qt.AlignLeft | Qt.AlignTop)
         self.grid.setColumnStretch(cols, 1)
-        rows = (len(self.tiles) + cols - 1) // cols
+        rows = (len(shown) + cols - 1) // cols
         self.setMinimumHeight(rows * TILE_H + max(0, rows - 1) * 14)
 
     def resizeEvent(self, e):
@@ -244,7 +265,7 @@ class HeroBanner(QFrame):
     def __init__(self, results, on_install):
         super().__init__()
         self.setObjectName("StoreHero")
-        self.setFixedHeight(264)
+        self.setFixedHeight(300)
         self.results = results
         self.on_install = on_install
         self.i = 0
@@ -253,24 +274,34 @@ class HeroBanner(QFrame):
         h.setContentsMargins(34, 28, 34, 24)
         col = QVBoxLayout()
         col.setSpacing(6)
-        eb = QLabel("FEATURED")
-        eb.setObjectName("RailEyebrow")
-        eb.setContentsMargins(0, 0, 0, 0)
-        eb.setStyleSheet("padding: 0px;")
-        f = eb.font()
-        f.setLetterSpacing(QFont.AbsoluteSpacing, 1.6)
-        eb.setFont(f)
-        col.addWidget(eb)
+        self.eyebrow = QLabel("FEATURED")
+        self.eyebrow.setObjectName("RailEyebrow")
+        self.eyebrow.setStyleSheet("padding: 0px;")
+        f = self.eyebrow.font()
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 1.8)
+        self.eyebrow.setFont(f)
+        col.addWidget(self.eyebrow)
+        col.addSpacing(6)
+        head = QHBoxLayout()
+        head.setSpacing(16)
+        self.icon = QLabel()
+        self.icon.setFixedSize(72, 72)
+        head.addWidget(self.icon, 0, Qt.AlignVCenter)
+        names = QVBoxLayout()
+        names.setSpacing(2)
         self.title = QLabel()
         self.title.setObjectName("HeroTitle")
         self.dev = QLabel()
         self.dev.setObjectName("HeroDev")
+        names.addWidget(self.title)
+        names.addWidget(self.dev)
+        head.addLayout(names)
+        head.addStretch()
+        col.addLayout(head)
         self.about = QLabel()
         self.about.setObjectName("HeroAbout")
         self.about.setWordWrap(True)
-        self.about.setMaximumWidth(380)
-        col.addWidget(self.title)
-        col.addWidget(self.dev)
+        self.about.setMaximumWidth(360)
         col.addSpacing(4)
         col.addWidget(self.about)
         col.addStretch()
@@ -296,11 +327,13 @@ class HeroBanner(QFrame):
         col.addLayout(row)
         h.addLayout(col)
         h.addStretch(1)
+        self.icons = {}
         loader = ArtLoader.get()
         loader.loaded.connect(self._art)
         for r in results:
-            key, fid, _url = art_key(r)
+            key, fid, url = art_key(r)
             loader.request(key, "shot", fid)
+            loader.request(key, "icon", fid, url)
         self.timer = QTimer(self)
         self.timer.timeout.connect(lambda: self.show_index((self.i + 1) % max(1, len(self.results))))
         self.timer.start(9000)
@@ -313,6 +346,10 @@ class HeroBanner(QFrame):
         r = self.results[i]
         key = art_key(r)[0]
         self.title.setText(r.name)
+        cat = (r.extra or {}).get("category", "")
+        self.eyebrow.setText("FEATURED" + (f"  ·  {cat.upper()}" if cat else ""))
+        icon = self.icons.get(key) or bundled_icon(r)
+        self.icon.setPixmap(rounded(icon, 72, 16) if icon is not None else monogram(r.name, 72))
         meta = self.brand.get(key, {})
         self.dev.setText(meta.get("developer") or r.label)
         self.about.setText(r.summary or meta.get("summary", ""))
@@ -339,6 +376,12 @@ class HeroBanner(QFrame):
         return base.darker(115) if p.dark and base.lightness() > 90 else base
 
     def _art(self, key, kind, path, meta):
+        if kind == "icon":
+            if path and not QPixmap(path).isNull():
+                self.icons[key] = QPixmap(path)
+                if self.results and art_key(self.results[self.i])[0] == key:
+                    self.show_index(self.i)
+            return
         if kind != "shot":
             return
         try:
@@ -364,6 +407,13 @@ class HeroBanner(QFrame):
         key = art_key(self.results[self.i])[0] if self.results else ""
         base = self._base()
         g.fillRect(r, base)
+        # The brand colour's own light, pooled behind the screenshot.
+        glow = QRadialGradient(QPointF(r.width() * 0.72, r.height() * 0.5), r.width() * 0.45)
+        lit = QColor(base).lighter(170)
+        lit.setAlpha(110)
+        glow.setColorAt(0, lit)
+        glow.setColorAt(1, QColor(0, 0, 0, 0))
+        g.fillRect(r, glow)
         shot = self.shots.get(key)
         if shot is not None:
             # The screenshot fills the right 62 %; a fade from the brand colour blends its left edge in.
@@ -371,6 +421,10 @@ class HeroBanner(QFrame):
             s = shot.scaled(int(area.width() * 2), int(area.height() * 2), Qt.KeepAspectRatioByExpanding,
                             Qt.SmoothTransformation)
             sx = (s.width() - area.width() * 2) / 2
+            for k in range(10, 0, -2):                # a soft shadow lifts it off the banner
+                g.setPen(Qt.NoPen)
+                g.setBrush(QColor(0, 0, 0, 10))
+                g.drawRoundedRect(area.adjusted(-k, -k + 6, k, k + 6), 10 + k, 10 + k)
             shot_path = QPainterPath()
             shot_path.addRoundedRect(area, 10, 10)
             g.save()

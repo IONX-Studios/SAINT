@@ -68,7 +68,9 @@ def search_featured(q: str, catalog: Optional[Dict[str, sa.App]] = None) -> List
         hay = f"{a.id} {a.name} {a.about} {a.category}".lower()
         if all(w in hay for w in words):
             hits.append(Result("featured", a.id, a.name, a.about, extra={"method": a.method, "ref": a.ref,
-                                                                          "art": a.art, "category": a.category}))
+                                                                          "art": a.art, "category": a.category,
+                                                                          "icon_file": a.icon,
+                                                                          "developer": a.developer}))
     return hits
 
 

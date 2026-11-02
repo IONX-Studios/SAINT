@@ -62,6 +62,8 @@ class App:
     needs: List[str] = field(default_factory=list)
     arch: str = ""                  # pacman package names for a "dnf" (distribution package) app
     art: str = ""                   # Flathub id whose icon/screenshots show this app when it isn't a Flatpak
+    icon: str = ""                  # a bundled icon (data/store-icons) for an app with no Flathub entry at all
+    developer: str = ""             # who makes it, when Flathub can't say
 
     @property
     def refs(self) -> List[str]:

@@ -85,7 +85,9 @@
       "needs": [
         "nodejs"
       ],
-      "about": "Anthropic's coding agent in the terminal (command: claude)"
+      "about": "Anthropic's coding agent in the terminal (command: claude)",
+      "icon": "data/store-icons/claude-code.png",
+      "developer": "Anthropic"
     },
     {
       "id": "ollama",
@@ -94,15 +96,19 @@
       "method": "dnf",
       "ref": "ollama",
       "arch": "ollama",
-      "about": "Run local language models for SAINT (no model is downloaded)"
+      "about": "Run language models on this PC for SAINT",
+      "icon": "data/store-icons/ollama.png",
+      "developer": "Ollama"
     },
     {
       "id": "vscode",
       "name": "Visual Studio Code",
       "category": "Developer",
       "method": "aur",
-      "ref": "visual-studio-code-bin", "art": "com.visualstudio.code",
-      "about": "Microsoft's code editor (Microsoft's build from the AUR: marketplace, Copilot, Claude)"
+      "ref": "visual-studio-code-bin",
+      "art": "com.visualstudio.code",
+      "about": "Microsoft's code editor (Microsoft's build from the AUR: marketplace, Copilot, Claude)",
+      "developer": "Microsoft"
     },
     {
       "id": "github-desktop",
@@ -304,7 +310,9 @@
       "category": "Office & Utilities",
       "method": "aur",
       "ref": "teamviewer",
-      "about": "Remote access to this PC from your phone (needs a TeamViewer account)"
+      "about": "Remote access to this PC from your phone (needs a TeamViewer account)",
+      "icon": "data/store-icons/teamviewer.png",
+      "developer": "TeamViewer"
     },
     {
       "id": "qbittorrent",

@@ -13,7 +13,8 @@ votes / the PKGBUILD link / what to expect, and wait for a yes before anything r
 
 from collections import deque
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QPointF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QRadialGradient
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
@@ -31,8 +32,10 @@ class _Bridge(QObject):
 
 class StorePage(Page):
     def __init__(self, window=None):
-        super().__init__("Store", "Every app for Halo in one search: Arch, the AUR, Flathub and Windows apps.")
+        super().__init__("Store", "")
         self.window = window
+        self.title.hide()                             # the Store draws its own header below
+        self._category = "All"
         self._queue = deque()
         self._busy = False
         self._results = []
@@ -40,9 +43,30 @@ class StorePage(Page):
         self._bridge.line.connect(self._log_line)
         self._bridge.step.connect(self._on_step)
 
+        # Header: an orange eyebrow, a display title, then search across every source.
+        eyebrow = QLabel("HALO STORE")
+        eyebrow.setObjectName("RailEyebrow")
+        eyebrow.setStyleSheet("padding: 0px;")
+        f = eyebrow.font()
+        f.setLetterSpacing(QFont.AbsoluteSpacing, 2.0)
+        eyebrow.setFont(f)
+        self.root.addWidget(eyebrow)
+        headline = QLabel("Find your next app")
+        headline.setObjectName("StoreHeadline")
+        self.root.addWidget(headline)
+        sub = QLabel("Arch, Flathub, the AUR and Windows apps in one search. SAINT installs it and tells you "
+                     "when it is there.")
+        sub.setObjectName("PageSubtitle")
+        self.root.addWidget(sub)
         bar = QHBoxLayout()
         self.query = QLineEdit()
         self.query.setObjectName("StoreSearch")
+        try:
+            from ui import icons
+            from ui.theme import current_palette
+            self.query.addAction(icons.icon("search", current_palette().muted, 18), QLineEdit.LeadingPosition)
+        except Exception:
+            pass
         self.query.setPlaceholderText("Search every app — Blender, Roblox Studio, VS Code, Notepad++…")
         self.query.setClearButtonEnabled(True)
         # Live search: results follow the text as it's typed (debounced), and an empty box shows the picks at once.
@@ -54,8 +78,14 @@ class StorePage(Page):
         self.query.returnPressed.connect(self.search)
         bar.addWidget(self.query, 1)
         self.root.addLayout(bar)
+        # Browsing: category pills. Searching: where results come from.
+        self.pills = QHBoxLayout()
+        self.pills.setSpacing(8)
+        self._pill_buttons = {}
+        self.root.addLayout(self.pills)
         self.filter = Segmented([f[0] for f in FILTERS])
         self.filter.changed.connect(lambda _i: self._show_results() if self.query.text().strip() else None)
+        self.filter.hide()
         self.root.addWidget(self.filter, 0, Qt.AlignLeft)
 
         # Install queue: what's running, how far, and its log.
@@ -136,29 +166,77 @@ class StorePage(Page):
         from core.store import Result
         catalog = sa.load_catalog()
         return catalog, [Result("featured", a.id, a.name, a.about,
-                                extra={"method": a.method, "ref": a.ref, "art": a.art, "category": a.category})
+                                extra={"method": a.method, "ref": a.ref, "art": a.art, "category": a.category,
+                                       "icon_file": a.icon, "developer": a.developer})
                          for a in catalog.values()]
 
+    def _build_pills(self, categories):
+        if self._pill_buttons:
+            return
+        for name in ["All", *categories]:
+            b = QPushButton(name.replace("&", "&&"))          # "&" would become a shortcut underline
+            b.setObjectName("CatPill")
+            b.setCheckable(True)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, n=name: self._pick_category(n))
+            self.pills.addWidget(b)
+            self._pill_buttons[name] = b
+        self.pills.addStretch()
+
+    def _pick_category(self, name):
+        self._category = name
+        if self.query.text():
+            self.query.clear()                        # clearing shows the picks (in this category)
+        else:
+            self._show_picks()
+
     def _show_picks(self):
+        from ui import motion
         try:
             catalog, picks = self._picks()
         except Exception as e:
             self.status.setText(f"SAINT's app list isn't available: {e}")
             return
+        categories = list(dict.fromkeys(r.extra["category"] for r in picks))
+        self._build_pills(categories)
+        if self._category not in categories:
+            self._category = "All"
+        for n, b in self._pill_buttons.items():
+            b.setVisible(True)
+            b.setChecked(n == self._category)
+        self.filter.hide()
         by_id = {r.id: r for r in picks}
-        rows = [HeroBanner([by_id[i] for i in FEATURED if i in by_id], self._act)]
-        tiles = {}
-        for cat in dict.fromkeys(r.extra["category"] for r in picks):
-            head = QLabel(cat)
-            head.setObjectName("ShelfTitle")
-            rows.append(head)
-            grid = TileGrid()
+        rows, tiles = [], {}
+        if self._category == "All":
+            rows.append(HeroBanner([by_id[i] for i in FEATURED if i in by_id], self._act))
+        for cat in categories if self._category == "All" else [self._category]:
             shelf = [self._tile(r) for r in picks if r.extra["category"] == cat]
             tiles.update({t.result.id: t for t in shelf})
-            grid.set_tiles(shelf)
+            head = QHBoxLayout()
+            head.setContentsMargins(0, 8, 0, 0)
+            title = QLabel(cat)
+            title.setObjectName("ShelfTitle")
+            count = QLabel(f"{len(shelf)} apps")
+            count.setObjectName("Faint")
+            head.addWidget(title)
+            head.addSpacing(8)
+            head.addWidget(count, 0, Qt.AlignBottom)
+            head.addStretch()
+            if self._category == "All":
+                more = QPushButton("See all  \u2192")
+                more.setObjectName("ShelfMore")
+                more.setCursor(Qt.PointingHandCursor)
+                more.clicked.connect(lambda _=False, c=cat: self._pick_category(c))
+                head.addWidget(more)
+            box = QWidget()
+            box.setLayout(head)
+            rows.append(box)
+            grid = TileGrid()
+            grid.set_tiles(shelf, max_rows=1 if self._category == "All" else 0)
             rows.append(grid)
         self._set_rows(rows)
         self.status.setText("")
+        motion.stagger([t for t in tiles.values() if not t.isHidden()][:24], step=22, dy=8)
         self._mark_installed(catalog, tiles)
 
     def _mark_installed(self, catalog, tiles):
@@ -218,10 +296,30 @@ class StorePage(Page):
         # A Windows app that's blocked because a Linux version exists only points at that version: skip it.
         shown = [r for r in self._results if (want is None or r.source == want)
                  and not (r.source == "windows" and (r.extra or {}).get("blocked"))]
+        for b in self._pill_buttons.values():
+            b.hide()
+        self.filter.show()
         grid = TileGrid()
-        grid.set_tiles([self._tile(r) for r in shown])
+        tiles = [self._tile(r) for r in shown]
+        grid.set_tiles(tiles)
         self._set_rows([grid] if shown else [])
+        from ui import motion
+        motion.stagger(tiles[:16], step=22, dy=8)
         self.status.setText(f"{len(shown)} result(s)" if shown else "Nothing found. Try another name.")
+
+    def paintEvent(self, e):
+        """A low orange glow behind the header: the Store's light, in SAINT's colour."""
+        super().paintEvent(e)
+        from ui.theme import current_palette
+        p = current_palette()
+        g = QPainter(self)
+        glow = QRadialGradient(QPointF(self.width() * 0.18, -40), max(320.0, self.width() * 0.5))
+        c = QColor(p.accent)
+        c.setAlpha(34 if p.dark else 26)
+        glow.setColorAt(0, c)
+        glow.setColorAt(1, QColor(0, 0, 0, 0))
+        g.fillRect(self.rect(), glow)
+        g.end()
 
     # ------------------------------------------------------------------ installing
     def install(self, r):

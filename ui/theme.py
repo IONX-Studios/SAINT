@@ -296,7 +296,14 @@ QPushButton#HeroDot[on="true"] {{ background: {p.accent}; }}
 QLineEdit#StoreSearch {{ background: {p.surface}; border: 1px solid {p.border_strong}; border-radius: 12px;
     padding: 10px 16px; font-size: {fs + 1}px; }}
 QLineEdit#StoreSearch:focus {{ border-color: {p.accent}; }}
-QLabel#ShelfTitle {{ font-size: {fs + 4}px; font-weight: 600; color: {p.text}; padding-top: 6px; }}
+QLabel#ShelfTitle {{ font-size: {fs + 5}px; font-weight: 700; color: {p.text}; }}
+QLabel#StoreHeadline {{ font-size: {fs + 19}px; font-weight: 700; color: {p.text}; }}
+QPushButton#CatPill {{ background: transparent; color: {p.muted}; border: 1px solid {p.border_strong};
+    border-radius: 13px; padding: 4px 14px; min-height: 18px; font-weight: 600; }}
+QPushButton#CatPill:hover {{ color: {p.text}; border-color: {p.faint}; }}
+QPushButton#CatPill:checked {{ background: {p.accent}; color: {p.on_accent}; border-color: {p.accent}; }}
+QPushButton#ShelfMore {{ background: transparent; border: none; color: {p.accent}; font-weight: 600; padding: 4px 2px; }}
+QPushButton#ShelfMore:hover {{ color: {p.accent_hover}; }}
 QFrame#DeviceTile {{ background: transparent; border: 1px solid transparent; border-radius: 10px; }}
 QFrame#DeviceTile:hover {{ background: {hover}; }}
 QFrame#DeviceTileActive {{ background: {p.surface}; border: 1px solid {rgba(p.accent, 0.45)}; border-radius: 10px; }}

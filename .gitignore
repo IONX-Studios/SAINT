@@ -27,6 +27,7 @@ data/wake/*
 !data/wake/melspectrogram.onnx
 !data/wake/embedding_model.onnx
 !data/wake/README.md
+!data/store-icons/
 
 # Large local model weights (download separately, see README)
 core/KokoroTTS/

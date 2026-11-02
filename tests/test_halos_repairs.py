@@ -147,3 +147,40 @@ def test_kokoro_voice_ships_with_pinned_checksums():
 def test_live_session_has_room_for_app_installs():
     for f in ["packaging/arch/profile/efiboot/loader/entries/01-halo.conf", "packaging/arch/profile/syslinux/syslinux.cfg"]:
         assert "cow_spacesize=50%" in (ROOT / f).read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- health checks
+def test_ollama_reachable_without_the_model_is_not_working():
+    from core import health
+    tags = {"models": [{"name": "llama3.2:3b"}]}
+    assert health.ollama("http://x", "llama3.2:3b", get=lambda u: tags)["state"] == health.WORKING
+    assert health.ollama("http://x", "llama3.2", get=lambda u: tags)["state"] == health.WORKING
+    r = health.ollama("http://x", "qwen3:8b", get=lambda u: tags)
+    assert r["state"] == health.DEGRADED and "isn't downloaded" in r["detail"]
+    assert health.ollama("http://x", "m", get=lambda u: {"models": []})["state"] == health.DEGRADED
+
+
+def test_ollama_down_is_missing_or_failed(monkeypatch):
+    from core import health
+    import shutil
+
+    def down(_u):
+        raise ConnectionError("refused")
+    monkeypatch.setattr(shutil, "which", lambda _n: None)
+    assert health.ollama("http://x", "m", get=down)["state"] == health.MISSING
+    monkeypatch.setattr(shutil, "which", lambda _n: "/usr/bin/ollama")
+    assert health.ollama("http://x", "m", get=down)["state"] == health.FAILED
+
+
+def test_ollama_inference_needs_a_real_answer():
+    from core import health
+    assert health.ollama_inference("http://x", "m", post=lambda *a: {"response": "ready"})["state"] == health.WORKING
+    assert health.ollama_inference("http://x", "m", post=lambda *a: {"response": " "})["state"] == health.FAILED
+
+
+def test_tts_health_reports_the_engine_that_speaks():
+    from types import SimpleNamespace
+    from core import health
+    assert health.tts(SimpleNamespace(_engine_type="espeak", _device_info={}))["state"] == health.DEGRADED
+    assert health.tts(SimpleNamespace(_engine_type="kokoro", _device_info={}))["state"] == health.WORKING
+    assert health.tts(None)["state"] == health.NOT_TESTED

@@ -529,7 +529,25 @@ def build_window(start_page: str = "Welcome"):
         except ValueError as e:
             ai_status.setText(str(e))
     save.clicked.connect(do_save)
+    # A real prompt to the chosen model: "running" alone doesn't mean the model answers.
+    test_ai = QPushButton("Test a reply")
+
+    def tested_ai(res):
+        test_ai.setEnabled(True)
+        ai_status.setText(f"Test failed: {res}" if isinstance(res, Exception) else
+                          ("Working — " if res["state"] == "working" else "FAILED — ") + res["detail"])
+
+    def run_ai_test():
+        from core import health
+        if not model.currentText():
+            ai_status.setText("Pick or pull a model first (Detect local models).")
+            return
+        test_ai.setEnabled(False)
+        ai_status.setText(f"Asking {model.currentText()} for a one-word reply…")
+        in_background(lambda: health.ollama_inference(base.text(), model.currentText()), tested_ai)
+    test_ai.clicked.connect(run_ai_test)
     btns.addWidget(detect)
+    btns.addWidget(test_ai)
     btns.addWidget(save)
     btns.addStretch(1)
     v.addLayout(btns)

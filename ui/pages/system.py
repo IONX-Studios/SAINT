@@ -130,13 +130,14 @@ class SystemPage(Page):
 
         provider, model = config.get("ai.provider", "mock"), config.get("ai.model", "")
         if provider == "ollama":
-            def ping():
-                import requests
-                return requests.get(config.get("ai.base_url", "http://localhost:11434").rstrip("/") + "/api/version",
-                                    timeout=2).ok
-            run_async(ping, lambda up: self.t["Language model"].set(
-                model, "Ollama · connected" if up else "Ollama · not reachable", "" if up else "danger"),
-                lambda _e: self.t["Language model"].set(model, "Ollama · not reachable", "danger"))
+            # Running *and* the configured model downloaded (core/health.py) — a reachable Ollama without the
+            # model isn't green.
+            from core import health
+            tones = {health.WORKING: "success", health.DEGRADED: "warning"}
+            run_async(lambda: health.ollama(config.get("ai.base_url", "http://localhost:11434"), model),
+                      lambda r: self.t["Language model"].set(model or "—", f"Ollama · {r['detail']}",
+                                                             tones.get(r["state"], "danger")),
+                      lambda _e: self.t["Language model"].set(model, "Ollama · check failed", "danger"))
         else:
             self.t["Language model"].set(model or provider, provider)
 
@@ -144,7 +145,14 @@ class SystemPage(Page):
         diag = voice.diagnostics if voice else {}
         self.t["Speech-to-text"].set(config.get("voice.stt_model", "—"), diag.get("stt_device") or "not loaded",
                                      "" if diag.get("stt_loaded") else "warning")
-        self.t["Voice"].set(config.get("voice.tts_backend", "—").capitalize(), config.get("voice.tts_voice", ""))
+        # The engine actually speaking, not the configured one (espeak-ng isn't shown as Kokoro).
+        from core import health
+        from modules.voice.tts_service import TTSService
+        v = health.tts(TTSService._instance)
+        self.t["Voice"].set(v["detail"].split(" — ")[0] if v["state"] != health.NOT_TESTED else "Not loaded",
+                            f"{config.get('voice.tts_voice', '')} · {v['state']}",
+                            {health.WORKING: "success", health.DEGRADED: "warning",
+                             health.FAILED: "danger"}.get(v["state"], ""))
         w = voice.wake_status() if voice else {}
         if not w.get("enabled"):
             self.t["Wake word"].set("Off", "responds to all speech", "warning")

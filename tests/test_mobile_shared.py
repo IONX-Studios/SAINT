@@ -15,7 +15,7 @@ def _pairs():
     for name in sorted(os.listdir(lex)):
         if name.endswith(".json"):
             yield os.path.join(lex, name), os.path.join(IOS, "Sources", "SaintCore", "Resources", "Lexicon", name)
-    for name in ("link_vectors.json", "lang_cases.json", "time_cases.json"):
+    for name in ("link_vectors.json", "lang_cases.json", "time_cases.json", "remote_vectors.json"):
         yield os.path.join(ROOT, "tests", "data", name), os.path.join(IOS, "Tests", "SaintCoreTests", "Resources", name)
 
 

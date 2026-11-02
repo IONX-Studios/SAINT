@@ -559,6 +559,11 @@ class DevicesPage(Page):
                 b = QPushButton("Sync now")
                 b.clicked.connect(lambda _=False, i=d["id"]: self._sync(i))
                 h.addWidget(b)
+            if d["role"] == "own" and d["platform"] not in ("ios", "android"):
+                b = QPushButton("Remote desktop")
+                b.setToolTip("See and control this PC (Halo Remote)")
+                b.clicked.connect(lambda _=False, i=d["id"]: self._remote_desktop(i))
+                h.addWidget(b)
             if d["connected"]:
                 b = QPushButton("Send file…")
                 b.clicked.connect(lambda _=False, i=d["id"]: self._send_file(i))
@@ -595,6 +600,29 @@ class DevicesPage(Page):
                   lambda r: self._say(f"Synced: received {r['received']}, sent {r['sent']}." if r["received"] or r["sent"]
                                       else "Already in sync — nothing new on either side."),
                   lambda e: self._say(str(e), True))
+
+    def _remote_desktop(self, peer_id):
+        from ui import remote_desktop as rd
+        if not rd.webengine_available():
+            self._say("This SAINT build has no Qt WebEngine, which the remote-desktop window needs.", True)
+            return
+        link = _link()
+        peer = link.peers.get(peer_id)
+        if peer is None:
+            return
+        self._say(f"Asking {peer.name} where its Halo Remote is…")
+        cache = dict(config.get(rd.CACHE_KEY, {}) or {})
+
+        def run():
+            info = rd.resolve_info(link, peer, cache)
+            return info, rd.host_record(peer, info)
+
+        def done(result):
+            info, host = result
+            config.set(rd.CACHE_KEY, cache)
+            rd.open_window(link.identity.private_key, link.identity.name, host, info["relay_url"])
+            self._say(f"Opening {peer.name}. The first time, {peer.name} asks whether to allow this computer.")
+        run_async(run, done, lambda e: self._say(str(e), True))
 
     def _send_file(self, peer_id):
         path, _ = QFileDialog.getOpenFileName(self, "Send a file")

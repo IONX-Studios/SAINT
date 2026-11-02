@@ -28,6 +28,12 @@ struct DevicesView: View {
                     }
                     .listRowBackground(Theme.surface)
                     remoteSection
+                    Section {
+                        NavigationLink { RemoteDesktopView() } label: {
+                            Label("Halo Remote — see and control your PC", systemImage: "display")
+                        }
+                    }
+                    .listRowBackground(Theme.surface)
                 }
                 if !friends.isEmpty {
                     Section("Friends' SAINTs") {

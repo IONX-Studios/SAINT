@@ -1,0 +1,202 @@
+{
+  "about": "Halo Remote protocol v1 known answers (docs/REMOTE_DESKTOP.md). Written by tools/remote_vectors.py.",
+  "ts": 1793600000,
+  "keys": {
+    "host": {
+      "private": "a8abababababababababababababababababababababababababababababab6b",
+      "public": "43EthRoOXXm4McXjSrIrQaGYFx3iCbi4+sojoRxiSFk=",
+      "device_id": "bd7381eab08d2d62"
+    },
+    "client": {
+      "private": "5871c6f9a0d1d2f1e8c4a3b2c1d0e0f1a2b3c4d5e6f708192a3b4c5d6e7f8051",
+      "public": "0grAyyPz/SuKL1vELc1iqUoY+wfek2batCHRNzfvKCc=",
+      "device_id": "c985edd608967f09"
+    },
+    "stranger": {
+      "private": "e01717171717171717171717171717171717171717171717171717171717174f",
+      "public": "l9bxID5dyObeJB6jfKN+NS4UlZffKZXMy/7vzXPAkm4=",
+      "device_id": "5968faef13ceb4ee"
+    }
+  },
+  "account_id": "bd7381eab08d2d62675c27c79e9982157e71617a09588651d8abbac503d39923",
+  "session_key": "c56c4387fc980cf9618a68f7ced0fc1233f1b0332523a8ac003584448e641f19",
+  "canonical": [
+    {
+      "object": {
+        "b": 1,
+        "a": [
+          true,
+          false,
+          null
+        ],
+        "c": {
+          "z": "",
+          "y": -7
+        }
+      },
+      "canonical": "{\"a\":[true,false,null],\"b\":1,\"c\":{\"y\":-7,\"z\":\"\"}}"
+    },
+    {
+      "object": {
+        "name": "Sebastian’s iPad",
+        "emoji": "🖥 ok",
+        "esc": "q\"b\\s/\n\t\r\b\f\u0001\u001f",
+        "u": " "
+      },
+      "canonical": "{\"emoji\":\"🖥 ok\",\"esc\":\"q\\\"b\\\\s/\\n\\t\\r\\b\\f\\u0001\\u001f\",\"name\":\"Sebastian’s iPad\",\"u\":\" \"}"
+    },
+    {
+      "object": {
+        "type": "x",
+        "nested": [
+          {
+            "k": [
+              1,
+              [
+                2,
+                [
+                  3
+                ]
+              ]
+            ]
+          }
+        ],
+        "big": 9007199254740991,
+        "neg": -1
+      },
+      "canonical": "{\"big\":9007199254740991,\"neg\":-1,\"nested\":[{\"k\":[1,[2,[3]]]}],\"type\":\"x\"}"
+    }
+  ],
+  "signed": {
+    "session.request": {
+      "type": "session.request",
+      "from": "c985edd608967f09",
+      "to": "bd7381eab08d2d62",
+      "session_id": "s-0001",
+      "ts": 1793600000,
+      "client": "Sebastian’s iPad",
+      "want": {
+        "max_w": 1920,
+        "max_h": 1080,
+        "fps": 30,
+        "audio": false
+      },
+      "sig": "k6l7PocBQFMgzd47CObqIixo8nNc4QgHqZUtw3V+xTs="
+    },
+    "session.accept": {
+      "type": "session.accept",
+      "from": "bd7381eab08d2d62",
+      "to": "c985edd608967f09",
+      "session_id": "s-0001",
+      "ts": 1793600000,
+      "ice_servers": [
+        {
+          "urls": [
+            "stun:relay.example:3478"
+          ]
+        }
+      ],
+      "sig": "p1aFBtISBK1BjVmJZapUiQct9Dbz3nkrYpTgJsaKu08="
+    },
+    "sdp.offer": {
+      "type": "sdp.offer",
+      "from": "bd7381eab08d2d62",
+      "to": "c985edd608967f09",
+      "session_id": "s-0001",
+      "ts": 1793600001,
+      "sdp": "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\na=fingerprint:sha-256 AB:CD\r\n",
+      "sig": "x/jdWg/64WCMaNWBmXYtTQK64VnwYjEC5+hu5WRMNHY="
+    }
+  },
+  "rejected": [
+    {
+      "why": "bad_signature",
+      "message": {
+        "type": "session.request",
+        "from": "c985edd608967f09",
+        "to": "bd7381eab08d2d62",
+        "session_id": "s-0001",
+        "ts": 1793600000,
+        "client": "Sebastian’s iPad",
+        "want": {
+          "max_w": 1920,
+          "max_h": 1080,
+          "fps": 60,
+          "audio": false
+        },
+        "sig": "k6l7PocBQFMgzd47CObqIixo8nNc4QgHqZUtw3V+xTs="
+      },
+      "verifier": "host",
+      "peer": "client"
+    },
+    {
+      "why": "wrong_sender",
+      "message": {
+        "type": "session.request",
+        "to": "bd7381eab08d2d62",
+        "session_id": "s-0001",
+        "ts": 1793600000,
+        "client": "Sebastian’s iPad",
+        "want": {
+          "max_w": 1920,
+          "max_h": 1080,
+          "fps": 30,
+          "audio": false
+        },
+        "from": "5968faef13ceb4ee",
+        "sig": "RIzAANW2XVFh2i6+aBAIZjZcBxW6mPs1j3AVZg4VcFI="
+      },
+      "verifier": "host",
+      "peer": "client"
+    },
+    {
+      "why": "bad_signature",
+      "message": {
+        "type": "session.request",
+        "to": "bd7381eab08d2d62",
+        "session_id": "s-0001",
+        "ts": 1793600000,
+        "client": "Sebastian’s iPad",
+        "want": {
+          "max_w": 1920,
+          "max_h": 1080,
+          "fps": 30,
+          "audio": false
+        },
+        "from": "c985edd608967f09",
+        "sig": "RIzAANW2XVFh2i6+aBAIZjZcBxW6mPs1j3AVZg4VcFI="
+      },
+      "verifier": "host",
+      "peer": "client"
+    }
+  ],
+  "relay_login": {
+    "eph_private": "c842424242424242424242424242424242424242424242424242424242424241",
+    "challenge": {
+      "type": "relay.challenge",
+      "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "eph": "uGj6vw1nrOFFZyOtKCHQbjgBv5t+A7lIJk70jcgVOXg="
+    },
+    "role": "client",
+    "device_id": "c985edd608967f09",
+    "proof": {
+      "type": "relay.proof",
+      "sig": "9mv+ZdLM61Q7ekn6HfHQJkbh8u+MO+qrnPQ0POL2tH8="
+    }
+  },
+  "pairing": {
+    "token": "0123456789",
+    "code": "AERU-KZ4J",
+    "psk": "1491ec082e8d2a93f9292b42c604c5e71a572fdc035f068f613eabae1584ec7d",
+    "request": {
+      "type": "pair.request",
+      "from": "c985edd608967f09",
+      "to": "bd7381eab08d2d62",
+      "pubkey": "0grAyyPz/SuKL1vELc1iqUoY+wfek2batCHRNzfvKCc=",
+      "name": "Chromebook",
+      "platform": "web",
+      "ts": 1793600000,
+      "mac": "JcNnk/p3LD2PXajd8wGWLp0olpMjwou3ZUdwp77zzSo="
+    }
+  }
+}

@@ -7,9 +7,9 @@ name: iOS app
 
 on:
   push:
-    paths: ["mobile/ios/**", ".github/workflows/mobile-ios.yml"]
+    paths: ["mobile/ios/**", "tests/data/remote_vectors.json", ".github/workflows/mobile-ios.yml"]
   pull_request:
-    paths: ["mobile/ios/**", ".github/workflows/mobile-ios.yml"]
+    paths: ["mobile/ios/**", "tests/data/remote_vectors.json", ".github/workflows/mobile-ios.yml"]
   workflow_dispatch:
 
 defaults:

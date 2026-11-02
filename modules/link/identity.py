@@ -76,15 +76,16 @@ PERMISSIONS = {
     "auto.run_scene": "Run one of my shared scenes",
     "auto.play_music": "Play music on my Spotify",
     "auto.ask": "Ask my SAINT a question",
+    "remote_desktop": "See and control this PC's screen (Halo Remote)",
 }
 
 ROLE_DEFAULTS = {
     OWN: {"sync": ALLOW, "chat": ALLOW, "status": ALLOW, "files": ALLOW, "notify": ALLOW, "context": ALLOW,
           "share": ALLOW, "auto.send_prompt": ALLOW, "auto.message": ALLOW, "auto.open_url": ALLOW,
-          "auto.run_scene": ALLOW, "auto.play_music": ALLOW, "auto.ask": ALLOW},
+          "auto.run_scene": ALLOW, "auto.play_music": ALLOW, "auto.ask": ALLOW, "remote_desktop": ASK},
     COLLABORATOR: {"sync": DENY, "chat": DENY, "status": ASK, "files": ALLOW, "notify": ALLOW, "context": DENY,
                    "share": ALLOW, "auto.send_prompt": ASK, "auto.message": ALLOW, "auto.open_url": ASK,
-                   "auto.run_scene": DENY, "auto.play_music": ASK, "auto.ask": ASK},
+                   "auto.run_scene": DENY, "auto.play_music": ASK, "auto.ask": ASK, "remote_desktop": DENY},
 }
 
 
@@ -186,7 +187,33 @@ class PeerStore:
             peers = [p for p in self.all() if p.id != peer.id]
             peers.append(peer)
             self._write(peers)
+            self._unrevoke(peer.id)
         return peer
+
+    # Removed devices are remembered (id -> when) so Halo Remote can refuse them as "revoked" and tell the
+    # relay to drop their routes; pairing the device again clears the entry.
+    @property
+    def revoked_path(self) -> str:
+        return os.path.join(os.path.dirname(self.path), "revoked.json")
+
+    def revoked(self) -> Dict[str, float]:
+        try:
+            with open(self.revoked_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, ValueError):
+            return {}
+        return {k: float(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+    def _write_revoked(self, revoked: Dict[str, float]):
+        tmp = self.revoked_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(revoked, f, indent=2)
+        os.replace(tmp, self.revoked_path)
+
+    def _unrevoke(self, peer_id: str):
+        revoked = self.revoked()
+        if revoked.pop(peer_id, None) is not None:
+            self._write_revoked(revoked)
 
     def update(self, peer_id: str, **fields) -> Optional[Peer]:
         with self._lock:
@@ -210,6 +237,9 @@ class PeerStore:
             if len(rest) == len(peers):
                 return False
             self._write(rest)
+            revoked = self.revoked()
+            revoked[peer_id] = time.time()
+            self._write_revoked(revoked)
             return True
 
     def find_by_name(self, spoken: str) -> Optional[Peer]:

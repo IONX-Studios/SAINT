@@ -30,39 +30,79 @@ the core (closed, account-bound — remains an optional Store app).
       └──── WebRTC (DTLS-SRTP), P2P or via TURN ───────────────────────┘
 ```
 
-- `halo-remote` — user systemd service on the PC (`packaging/.../halo-remote.service`), off until enabled in
-  SAINT → Devices → Remote access. Dials the relay, waits for offers, runs one session at a time (v1).
-- Halo Relay — `server/relay/` (Workstream B). Stateless except presence; never sees media or keystrokes.
-- Clients — `web/remote/` (static, served by the relay), the desktop client (same web client in a Tauri
-  shell), `mobile/ios` (native SwiftUI + WebRTC).
+- `halo-remote` — user systemd service on the PC (`packaging/linux/systemd/halo-remote.service.in`;
+  `python3 -m modules.remote_desktop.host enable|disable|status|pair|set-relay URL`), off until enabled. Dials the
+  relay, runs one session at a time (v1; the same device reconnecting replaces its own session). The portal shows
+  KDE's "Allow remote control?" dialog the **first** time; the restore token it returns (persist mode 2) makes
+  later sessions start without anyone at the PC — so approve it once while sitting at the PC.
+- Halo Relay — `server/relay/` (Workstream B). In-memory state only (presence, each PC's device list; PCs re-send
+  it on reconnect); never sees media or keystrokes.
+- Clients — **SAINT's desktop app** (Windows/Linux: Devices → a PC → *Remote desktop*, `ui/remote_desktop.py`: the
+  shared viewer `web/remote/js/viewer.js` in Qt WebEngine, identity = the app's Link key, which stays in Python and
+  only lends X25519 results to the page), **the iPhone app** (`mobile/ios`, native SwiftUI + WebRTC), and the browser
+  page `web/remote/` (served by the relay). The first draft planned a separate Tauri client; SAINT's own app already
+  has the user's paired PCs and keys, so it is the downloadable client.
+- **No typing the relay in:** a paired app asks the PC over Link (`remote.info` → `{relay_url, device_id, account}`,
+  refused when the device's `remote_desktop` permission is *deny*) and remembers the answer.
+- **Codecs:** clients send `want.codecs` (what they decode); the host prefers H.264 and falls back to VP8 for
+  clients without an H.264 decoder (Qt WebEngine builds without proprietary codecs).
 
 ## Authentication
 
-1. **Pairing** (once per client): SAINT Link pairing code/QR (`saint://pair?...`). The client stores its
-   Curve25519 key pair (iOS Keychain / browser: non-extractable WebCrypto key in IndexedDB) and the PC's
-   public key; the PC records the client's key with role `own` and permission `remote_desktop`.
-2. **Relay login**: the PC and each client authenticate to the relay with a signed challenge
-   (`relay.challenge` → Ed25519/X25519-derived signature); the relay only routes between devices registered
-   to the same *account id* = SHA-256 of the PC's public key. No passwords on the relay.
-3. **Session**: the client's `session.request` is signed with its device key; the host checks the key is
-   paired, not revoked and allowed `remote_desktop`, then shows "Allow <device>?" on the PC unless the user
-   set that device to *always allow*. The WebRTC DTLS fingerprints are carried inside the signed messages,
-   so the relay cannot man-in-the-middle the media.
-4. **Revocation**: removing a device in SAINT deletes its key; the host refuses it immediately and tells the
-   relay to drop its routes. Session tokens expire after 12 h of inactivity.
+1. **Pairing** (once per client).
+   - *iPhone and other SAINT devices*: the existing SAINT Link pairing (code/QR, Noise XXpsk3 over Link's TCP
+     socket). The phone keeps using its Link key; nothing new to pair.
+   - *Browsers*: they can't open Link's TCP socket, so they pair **through the relay** with a one-time code from
+     `halo-remote pair` on the PC (the same 5-byte code and PBKDF2-stretched PSK as Link pairing). The browser sends
+     `pair.request {pubkey, name}` MACed with the code's PSK; the PC checks it, records the key as an own device
+     (permission `remote_desktop: ask`) and answers `pair.accept {pubkey}` MACed the same way, so a relay without the
+     code can't substitute either key. The browser keeps a non-extractable WebCrypto X25519 key in IndexedDB.
+   The PC's Link permission **`remote_desktop`** (own devices: *ask*, friends: *deny*) decides who may ask.
+2. **Relay login**: `hello` -> `relay.challenge {nonce, eph}` (a one-time relay X25519 key) -> `relay.proof
+   {sig = HMAC(HKDF(X25519(device, eph), "relay-login"), nonce || device_id || 0 || role)}`. The relay routes only
+   between a PC and the devices that PC listed (`devices`); an account id is SHA-256 of the PC's public key.
+   No passwords on the relay.
+3. **Session**: `session.*` and `sdp.*` carry `sig` = HMAC-SHA256 under
+   `HKDF(X25519(mine, theirs), "halo-remote/v1", "session-mac" || min(pub) || max(pub))` over the canonical JSON of
+   the message, plus `from`/`to`/`ts` (+-300 s) and a replay guard. Only the two paired devices can derive that key,
+   so the relay can't forge or alter a message, and the DTLS fingerprints inside the SDP are covered: it can't sit in
+   the middle of the media either. The host checks the key is paired, not revoked and allowed `remote_desktop`, then
+   asks "Allow <device>?" on the PC (kdialog, 30 s) unless that device is set to *allow*.
+4. **Revocation**: removing a device in SAINT deletes its key and records it in `data/link/revoked.json`; the host
+   refuses it as `revoked`, ends a running session within a second, and re-sends its `devices` list so the relay
+   drops the route at once. A session ends after 12 h without input.
 
-## Protocol v1 (JSON over WSS to the relay; `type` + fields; all host-bound requests signed)
+**Changed from the first draft (and why):** the draft said messages would be *signed* with "Ed25519/X25519-derived"
+signatures. Link keys are X25519, which can't sign; Ed25519 would mean a second key per device and pairing every
+device again, and XEdDSA (signing with an X25519 key) isn't available in CryptoKit, WebCrypto or `cryptography`.
+A MAC from the pairwise static-static X25519 secret gives the same guarantee here (only the two paired devices can
+produce or check it; the relay can do neither) with primitives all three platforms have. It is deniable between the
+two devices, which doesn't matter for this use. The draft also assumed browsers pair through Link, which they can't
+(no raw TCP), hence pairing through the relay.
+
+## Protocol v1 (JSON over WSS to the relay; `type` + fields)
+
+Implemented by `modules/remote_desktop/protocol.py` (PC + relay), `web/remote/js/protocol.js` (browser) and
+`mobile/ios/Sources/SaintCore/Remote` (iPhone); all three check the known answers in `tests/data/remote_vectors.json`.
+Signed messages may only hold strings, integers, booleans, null, lists and objects (no floats), so the canonical JSON
+(sorted keys, no whitespace, UTF-8, JSON.stringify escapes) is byte-identical everywhere.
 
 | Message | Direction | Fields |
 |---|---|---|
-| `hello` | any → relay | `v:1`, `device_id`, `role: host\|client`, `pubkey` |
-| `relay.challenge` / `relay.proof` | relay ↔ device | `nonce` / `sig` |
-| `presence` | relay → client | `hosts: [{device_id, name, online, last_seen}]` |
-| `session.request` | client → host | `session_id`, `client`, `want: {max_w, max_h, fps, audio}`, `sig` |
-| `session.accept` / `session.deny` | host → client | `session_id`, `reason?`, `ice_servers` |
-| `sdp.offer` / `sdp.answer` | both | `session_id`, `sdp`, `sig` |
-| `ice` | both | `session_id`, `candidate` |
-| `session.end` | both | `session_id`, `reason` |
+| `hello` | device -> relay | `v:1`, `device_id`, `role: host\|client`, `pubkey`, `name`; clients: `accounts: [...]`, `pair?: account` |
+| `relay.challenge` / `relay.proof` | relay <-> device | `nonce`, `eph` / `sig` |
+| `welcome` | relay -> device | `device_id`, `ice_servers` (STUN + 12-h coturn REST credentials), `account` (host) |
+| `devices` | host -> relay | `keys: [{device_id, pubkey, name}]` — who may reach this PC |
+| `presence` | relay -> client | `hosts: [{account, device_id, name, online, last_seen}]` |
+| `error` | relay -> device | `reason` (`login_failed`, `not_allowed`, `offline`, `revoked`, `rate_limited`, ...) |
+| `pair.request` / `pair.accept` / `pair.deny` | client <-> host | `from`, `to`, `pubkey`, `name`, `platform`, `ts`, `mac` / `reason` |
+| `session.request` | client -> host | `from`, `to`, `session_id`, `ts`, `client`, `want: {max_w, max_h, fps, audio}`, `sig` |
+| `session.accept` / `session.deny` | host -> client | `from`, `to`, `session_id`, `ts`, `ice_servers` / `reason`, `sig` |
+| `sdp.offer` / `sdp.answer` | host -> client / client -> host | `from`, `to`, `session_id`, `ts`, `sdp`, `sig` |
+| `ice` | both | `from`, `to`, `session_id`, `candidate: {candidate, sdpMLineIndex}` (not signed; can't break DTLS) |
+| `session.end` | both | `from`, `to`, `session_id`, `ts`, `reason`, `sig` |
+
+The host sends the offer (video track + `control` and `files` data channels); clients answer.
 
 **Data channel `control`** (reliable, ordered) after connect — JSON:
 
@@ -71,7 +111,7 @@ the core (closed, account-bound — remains an optional Store app).
 | `pointer.move {x, y}` | absolute, normalised 0..1 of the stream |
 | `pointer.button {button: 1-3, down}` · `pointer.scroll {dx, dy}` | mouse |
 | `key {code, down}` | Linux evdev keycode (clients map from their layout) · `text {utf8}` for IME/emoji |
-| `clipboard {mime, data}` | both ways, text first; images ≤ 4 MB |
+| `clipboard {mime, data}` | both ways; v1 implements text (≤ 4 MB), images later |
 | `display {w, h, scale}` | client viewport → host may switch stream size |
 | `stats {rtt_ms, fps, kbps, path: p2p\|relay}` | host → client, once per second |
 
@@ -89,3 +129,19 @@ the core (closed, account-bound — remains an optional Store app).
 Unit: message schema + signature checks (Python and Swift share vectors in `tests/data/remote_vectors.json`).
 Integration: host ↔ browser on the Halo VM; unauthorised key refused; revoked key refused; reconnect after
 network drop; file transfer checksum. Cross-network: phone on cellular ↔ PC behind NAT via TURN.
+
+## Status (2026-11-02, Workstream B)
+
+| Part | Where | State |
+|---|---|---|
+| Protocol v1 + vectors | `modules/remote_desktop/protocol.py`, `tests/data/remote_vectors.json` | tested (pytest) |
+| Halo Relay | `server/relay/` | tested on localhost with real WebSockets (pytest, and from the browser client in Node); Docker image not built here |
+| Host logic (permission decision, session state machine, input mapping, files, pairing, pipeline/ICE config) | `modules/remote_desktop/host.py` | tested (pytest) |
+| Host media path (portal, PipeWire, GStreamer webrtcbin, libsoup, wl-clipboard) | `modules/remote_desktop/media.py` | **implemented, untested** — needs a Plasma Wayland session |
+| Browser client | `web/remote/` | tested: Node unit + relay integration tests; real WebRTC checked browser-to-browser in Chromium against `test/fake_host.html` (video, mouse, keys incl. Ctrl combos, clipboard, file + SHA-256, stats, disconnect). Not yet tried on Safari/iPad or a Chromebook; touch gestures only unit-tested |
+| iPhone | `mobile/ios` (`SaintCore/Remote`, `SaintMobile/Remote`) | **written, not compiled here** (no Swift toolchain on the dev host); XCTests run in CI |
+| Desktop client = SAINT's desktop app | `ui/remote_desktop.py`, `web/remote/desktop.html`, `js/desktop.js`, `js/viewer.js` | tested: pytest (relay lookup over Link, host record, loopback static server); real end-to-end on Windows — the Qt WebEngine window against the local relay and `test/fake_host.html`: live video 640×360 @ 30 fps, click and key delivered once each, clipboard not sent until you copy something while connected |
+| PC tells apps where Halo Remote is (`remote.info` over Link) | `modules/link/service.py` | tested (pytest) |
+| H.264 / VP8 choice | `modules/remote_desktop/host.py` | tested (pytest); the VP8 pipeline itself runs only on Halo (untested) |
+| SAINT -> Devices -> Remote access settings on the PC | — | not started; the `halo-remote` CLI does it |
+| Halo package | `packaging/arch/pkgbuilds/saint` | not changed (Workstream A owns it): needs the unit installed and `gst-plugins-bad libnice gst-plugin-pipewire gst-python python-gobject libsoup3 wl-clipboard kdialog python-keyring` |

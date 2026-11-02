@@ -48,6 +48,8 @@ final class AppModel: ObservableObject {
     let settings: AppSettings
     let brain: Brain
     let link: LinkManager
+    /// Halo Remote (remote desktop to your PCs through the relay).
+    let remote: RemoteDesktopModel
     let voice = VoiceEngine()
     let speaker = Speaker()
     let spotify: SpotifyService
@@ -109,6 +111,7 @@ final class AppModel: ObservableObject {
         link = LinkManager(identity: identity, peerStore: PeerStore(directory: data), engine: engine, feed: brain.feed,
                            inboxDirectory: inbox) { host, port in NWTransport(host: host, port: port) }
         spotify = SpotifyService(keychain: keychain, settings: settings)
+        remote = RemoteDesktopModel(link: link, settings: settings)
 
         brain.music = spotify
         brain.pc = link

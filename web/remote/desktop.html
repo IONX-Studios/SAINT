@@ -1,0 +1,46 @@
+<!doctype html>
+<!-- Halo Remote inside SAINT's desktop app (ui/remote_desktop.py). Same viewer as the browser page; the identity is
+     SAINT's Link key, kept in the app and lent to this page through Qt WebChannel. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Halo Remote</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/desktop.js"></script>
+</head>
+<body>
+  <main id="home" class="screen">
+    <section class="card">
+      <h2 id="host-name">Halo Remote</h2>
+      <p id="status" class="muted" role="status">Starting…</p>
+      <button id="btn-retry" class="primary hidden">Connect again</button>
+    </section>
+  </main>
+
+  <main id="viewer" class="screen hidden">
+    <div id="stage" class="stage">
+      <video id="video" autoplay playsinline muted disablepictureinpicture></video>
+      <div id="overlay" class="overlay" role="status"></div>
+    </div>
+    <nav id="toolbar" class="toolbar">
+      <button id="btn-keyboard" class="hidden" aria-label="Keyboard">⌨</button>
+      <button id="btn-paste" title="Send this computer's clipboard to the PC">⇪ Paste</button>
+      <button id="btn-copy" title="Copy the PC's clipboard here" disabled>⇩ Copy</button>
+      <label class="file-btn" title="Send a file to the PC">⤴ File<input id="file" type="file"></label>
+      <button id="btn-keys" title="Ctrl+Alt+Del, Super, Esc">⌘ Keys</button>
+      <button id="btn-zoom" title="Reset zoom">1×</button>
+      <button id="btn-full" title="Full screen">⛶</button>
+      <span id="stats" class="stats"></span>
+      <button id="btn-end" class="danger" title="Disconnect">Disconnect</button>
+    </nav>
+    <div id="special" class="special hidden">
+      <button data-combo="ControlLeft,AltLeft,Delete">Ctrl+Alt+Del</button>
+      <button data-combo="MetaLeft">Super</button>
+      <button data-combo="Escape">Esc</button>
+      <button data-combo="AltLeft,Tab">Alt+Tab</button>
+    </div>
+    <textarea id="soft-keyboard" class="soft-keyboard" aria-hidden="true" tabindex="-1"></textarea>
+  </main>
+</body>
+</html>

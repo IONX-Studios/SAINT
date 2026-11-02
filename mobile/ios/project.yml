@@ -25,6 +25,11 @@ settings:
 packages:
   SaintCore:
     path: .
+  # Google's WebRTC as a binary framework, for Halo Remote's live view (SaintMobile/Remote). SaintCore doesn't
+  # depend on it, so `swift test` stays fast.
+  WebRTC:
+    url: https://github.com/stasel/WebRTC.git
+    from: "125.0.0"
 
 targets:
   SaintMobile:
@@ -35,6 +40,8 @@ targets:
     dependencies:
       - package: SaintCore
         product: SaintCore
+      - package: WebRTC
+        product: WebRTC
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.saint.mobile

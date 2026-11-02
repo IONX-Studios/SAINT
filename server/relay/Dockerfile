@@ -10,7 +10,8 @@ COPY modules/link/__init__.py modules/link/crypto.py modules/link/
 COPY modules/remote_desktop/__init__.py modules/remote_desktop/protocol.py modules/remote_desktop/
 COPY server/__init__.py server/__init__.py
 COPY server/relay/__init__.py server/relay/relay.py server/relay/
-COPY web/remote web/remote
+COPY web/remote/index.html web/remote/style.css web/remote/
+COPY web/remote/js web/remote/js
 RUN useradd --system --no-create-home relay
 USER relay
 ENV HALO_RELAY_PORT=8080 PYTHONUNBUFFERED=1

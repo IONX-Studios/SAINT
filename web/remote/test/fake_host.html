@@ -1,0 +1,97 @@
+<!doctype html>
+<!-- Test only (not shipped by the Dockerfile): a stand-in Halo PC in a browser tab, so the client's real WebRTC
+     path (video, data channels, files) can be exercised without a Linux desktop. Open /test/fake_host.html on
+     the dev relay, then the link it shows in another tab. Code is always AEBA-GBAF. -->
+<html><head><meta charset="utf-8"><title>Fake Halo host</title></head>
+<body style="background:#111;color:#eee;font:14px system-ui">
+<h1>Fake Halo host</h1>
+<p id="info">starting…</p>
+<canvas id="c" width="640" height="360"></canvas>
+<pre id="log"></pre>
+<script type="module">
+import * as P from "../js/protocol.js";
+const log = (...a) => { document.getElementById("log").textContent += a.join(" ") + "\n"; };
+const me = await P.newIdentity(true);
+const account = await P.accountIdFor(me.publicKey);
+const CODE = "AEBA-GBAF";
+const psk = await P.pskFor(P.decodeCode(CODE));
+const devices = [];
+window.received = []; window.files = []; window.state = "idle";
+let pc = null, client = null, sid = null;
+
+// moving picture
+const ctx = document.getElementById("c").getContext("2d");
+let n = 0;
+setInterval(() => { ctx.fillStyle = `hsl(${n++ % 360},60%,40%)`; ctx.fillRect(0, 0, 640, 360);
+  ctx.fillStyle = "#fff"; ctx.font = "40px sans-serif"; ctx.fillText("Fake Halo " + n, 40, 200); }, 33);
+
+const ws = new WebSocket(`ws://${location.host}/ws`);
+const send = (m) => ws.send(JSON.stringify(m));
+const signed = async (type, f) => P.sign(P.routed(type, me.deviceId, client.id, { session_id: sid, ...f }), me, client.pub);
+ws.onopen = () => send({ type: "hello", v: 1, device_id: me.deviceId, role: "host", pubkey: P.b64(me.publicKey), name: "Fake Halo" });
+ws.onmessage = async (e) => {
+  const m = JSON.parse(e.data);
+  if (m.type === "relay.challenge") return send(await P.relayProof(me, m, "host"));
+  if (m.type === "welcome") {
+    send({ type: "devices", keys: devices });
+    const link = `${location.origin}/#pair=${CODE}&host=${me.deviceId}&account=${account}`;
+    document.getElementById("info").innerHTML = `<a id="link" href="${link}" target="_blank">${link}</a>`;
+    window.pairLink = link;
+    return;
+  }
+  if (m.type === "pair.request") {
+    try { await P.checkPairMac(m, psk); } catch { return send(P.routed("pair.deny", me.deviceId, m.from, { reason: "bad_code" })); }
+    devices.push({ device_id: m.from, pubkey: m.pubkey, name: m.name });
+    send(await P.pairMac(P.routed("pair.accept", me.deviceId, m.from, { pubkey: P.b64(me.publicKey), name: "Fake Halo" }), psk));
+    send({ type: "devices", keys: devices });
+    log("paired", m.name);
+    return;
+  }
+  const dev = devices.find((d) => d.device_id === m.from);
+  if (!dev) return log("ignored", m.type);
+  const pub = P.unb64(dev.pubkey, 32);
+  if (P.SIGNED_TYPES.has(m.type)) await P.verify(m, me, pub);
+  if (m.type === "session.request") {
+    client = { id: m.from, pub }; sid = m.session_id; window.state = "negotiating";
+    send(await signed("session.accept", { ice_servers: [] }));
+    pc = new RTCPeerConnection();
+    const stream = document.getElementById("c").captureStream(30);
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    const control = pc.createDataChannel("control");
+    const files = pc.createDataChannel("files");
+    files.binaryType = "arraybuffer";
+    control.onmessage = (ev) => { window.received.push(JSON.parse(ev.data)); };
+    control.onopen = () => control.send(JSON.stringify({ type: "clipboard", mime: "text/plain", data: "from the PC" }));
+    let cur = null;
+    files.onmessage = async (ev) => {
+      if (typeof ev.data === "string") {
+        const o = JSON.parse(ev.data);
+        cur = { ...o, parts: [], got: 0 };
+        files.send(JSON.stringify({ type: "file.accept", id: o.id }));
+      } else {
+        cur.parts.push(new Uint8Array(ev.data)); cur.got += ev.data.byteLength;
+        if (cur.got >= cur.size) {
+          const all = new Uint8Array(await new Blob(cur.parts).arrayBuffer());
+          const ok = P.hex(await P.sha256(all)) === cur.sha256;
+          window.files.push({ name: cur.name, size: cur.size, ok });
+          files.send(JSON.stringify({ type: "file.done", id: cur.id, ok }));
+        }
+      }
+    };
+    setInterval(() => control.readyState === "open" && control.send(JSON.stringify({ type: "stats", rtt_ms: 1, fps: 30, kbps: 900, path: "p2p" })), 1000);
+    pc.onicecandidate = (ev) => ev.candidate && send(P.routed("ice", me.deviceId, client.id, { session_id: sid,
+      candidate: { candidate: ev.candidate.candidate, sdpMLineIndex: ev.candidate.sdpMLineIndex } }));
+    pc.onconnectionstatechange = () => { window.state = pc.connectionState; log("pc", pc.connectionState); };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send(await signed("sdp.offer", { sdp: pc.localDescription.sdp }));
+  } else if (m.type === "sdp.answer") {
+    await pc.setRemoteDescription({ type: "answer", sdp: m.sdp });
+  } else if (m.type === "ice") {
+    await pc.addIceCandidate(m.candidate);
+  } else if (m.type === "session.end") {
+    window.state = "ended:" + m.reason; pc?.close();
+  }
+};
+</script>
+</body></html>

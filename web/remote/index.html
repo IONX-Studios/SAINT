@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0a0b0d">
+  <title>Halo Remote</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <main id="home" class="screen">
+    <header class="top">
+      <h1>Halo Remote</h1>
+      <span id="relay-status" class="pill">offline</span>
+    </header>
+
+    <section id="unsupported" class="card hidden" role="alert">
+      <h2>This browser can't run Halo Remote</h2>
+      <p>It needs WebRTC and X25519 in WebCrypto: Chrome 133+, Safari 17+ (iPad/iPhone) or Firefox 130+, on an
+        <strong>https</strong> page.</p>
+    </section>
+
+    <section class="card">
+      <h2>Your PCs</h2>
+      <ul id="hosts" class="hosts"></ul>
+      <p id="no-hosts" class="muted">No PC paired yet. On your Halo PC run <code>halo-remote pair</code> and open the
+        link it shows on this device, or type the code below.</p>
+    </section>
+
+    <section class="card">
+      <h2>Pair a PC</h2>
+      <form id="pair-form" class="pair">
+        <label>Pairing code <input id="pair-code" autocomplete="off" autocapitalize="characters" spellcheck="false"
+          placeholder="ABCD-EFGH" required></label>
+        <label>PC id <input id="pair-host" autocomplete="off" spellcheck="false" placeholder="16 characters" required
+          pattern="[0-9a-f]{16}"></label>
+        <label>Account <input id="pair-account" autocomplete="off" spellcheck="false" placeholder="64 characters"
+          required pattern="[0-9a-f]{64}"></label>
+        <label>This device's name <input id="pair-name" autocomplete="off" maxlength="40"></label>
+        <button type="submit" class="primary">Pair</button>
+      </form>
+      <p id="pair-result" class="muted" role="status"></p>
+    </section>
+  </main>
+
+  <main id="viewer" class="screen hidden">
+    <div id="stage" class="stage">
+      <video id="video" autoplay playsinline muted disablepictureinpicture></video>
+      <div id="overlay" class="overlay" role="status"></div>
+    </div>
+    <nav id="toolbar" class="toolbar">
+      <button id="btn-keyboard" title="Keyboard" aria-label="Keyboard">⌨</button>
+      <button id="btn-paste" title="Send this device's clipboard to the PC" aria-label="Send clipboard">⇪ Paste</button>
+      <button id="btn-copy" title="Copy the PC's clipboard here" aria-label="Copy from PC" disabled>⇩ Copy</button>
+      <label class="file-btn" title="Send a file to the PC">⤴ File<input id="file" type="file"></label>
+      <button id="btn-keys" title="Ctrl+Alt+Del, Super, Esc" aria-label="Special keys">⌘ Keys</button>
+      <button id="btn-zoom" title="Reset zoom" aria-label="Reset zoom">1×</button>
+      <button id="btn-full" title="Full screen" aria-label="Full screen">⛶</button>
+      <span id="stats" class="stats"></span>
+      <button id="btn-end" class="danger" title="Disconnect">Disconnect</button>
+    </nav>
+    <div id="special" class="special hidden">
+      <button data-combo="ControlLeft,AltLeft,Delete">Ctrl+Alt+Del</button>
+      <button data-combo="MetaLeft">Super</button>
+      <button data-combo="Escape">Esc</button>
+      <button data-combo="AltLeft,Tab">Alt+Tab</button>
+      <button data-combo="ControlLeft,KeyC">Ctrl+C</button>
+      <button data-combo="ControlLeft,KeyV">Ctrl+V</button>
+    </div>
+    <textarea id="soft-keyboard" class="soft-keyboard" autocapitalize="off" autocomplete="off" autocorrect="off"
+      spellcheck="false" aria-label="Type on the PC"></textarea>
+  </main>
+</body>
+</html>

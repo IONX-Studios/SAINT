@@ -201,46 +201,102 @@ def blockers(cmdline: str = "", exists: Callable[[str], bool] = os.path.exists) 
 
 _PERCENT = re.compile(r"(\d{1,3})\s?%")
 
+# The tools' own words -> what went wrong, said so a person can act on it. First match wins.
+_FAILURES = [
+    (re.compile(r"no space left|not enough (disk )?space|ENOSPC|disk full", re.I),
+     "Not enough disk space{live}."),
+    (re.compile(r"could not resolve|temporary failure in name resolution|network is unreachable|"
+                r"unable to connect|connection (timed out|refused)|failed to retrieve|curl error|"
+                r"could not connect", re.I),
+     "Couldn't reach the download server. Check the network connection."),
+    (re.compile(r"no remote refs found|nothing matches|target not found|no such ref|"
+                r"could not find package|error: 404", re.I),
+     "The source doesn't have an app by this name (it may have been renamed or removed)."),
+    (re.compile(r"remote .* not found|no remote", re.I),
+     "The Flathub source isn't set up for your user."),
+    (re.compile(r"not authorized|authentication (is )?required|request dismissed|"
+                r"error executing command as another user", re.I),
+     "The password prompt was cancelled or isn't available, so the admin step didn't run."),
+    (re.compile(r"unable to lock database|db\.lck", re.I),
+     "Another install or update is running. Try again when it's finished."),
+    (re.compile(r"permission denied|operation not permitted|read-only file system", re.I),
+     "Permission denied writing the app's files."),
+    (re.compile(r"(gpg|signature).*(invalid|bad|fail|unknown)|invalid or corrupted package", re.I),
+     "The download's signature didn't verify, so it wasn't installed."),
+    (re.compile(r"conflict", re.I),
+     "It conflicts with something already installed."),
+]
+_LIVE_NOTE = " (the live session keeps installs in memory; install Halo to get the whole disk)"
+
+
+def explain_failure(lines: List[str], argv: List[str], live: bool = False) -> str:
+    """One sentence saying why a step failed, from its last output lines."""
+    text = "\n".join(lines[-40:])
+    for pattern, why in _FAILURES:
+        if pattern.search(text):
+            return why.format(live=_LIVE_NOTE if live else "")
+    tail = next((l.strip() for l in reversed(lines) if l.strip()), "")
+    return f"{argv[0]} failed: {tail[:200]}" if tail else f"{argv[0]} stopped without saying why."
+
 
 def run_plan(steps: List[Step], on_line: Callable[[str], None] = print,
              popen: Callable = subprocess.Popen,
-             on_step: Optional[Callable[[int, int, Step, str, int], None]] = None) -> Dict[str, bool]:
+             on_step: Optional[Callable[[int, int, Step, str, int], None]] = None,
+             errors: Optional[Dict[str, str]] = None, live: Optional[bool] = None) -> Dict[str, bool]:
     """Run each step, streaming its output. A failed step doesn't stop the others; the result says which
-    apps' steps succeeded (app id -> True/False).
+    apps' steps succeeded (app id -> True/False), and ``errors`` (when given) gets app id -> why it failed.
 
     ``on_step(index, total, step, status, percent)`` reports progress: status is "started", "progress"
     (percent from the tool's own output), "done" or "failed"."""
     result: Dict[str, bool] = {}
     report = on_step or (lambda *a: None)
+    if live is None:
+        live = os.name != "nt" and bool(blockers()[1])
+    setup_error = ""
     for i, step in enumerate(steps):
         on_line(f"==> {step.label}")
         report(i, len(steps), step, "started", 0)
         last = -1
+        seen: List[str] = []
+        why = ""
         try:
             proc = popen(step.argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             for line in proc.stdout:
                 line = line.rstrip()
                 on_line(line)
+                seen.append(line)
+                del seen[:-60]
                 m = _PERCENT.findall(line)
                 if m and (pct := min(100, int(m[-1]))) != last:
                     last = pct
                     report(i, len(steps), step, "progress", pct)
             ok = proc.wait() == 0
-        except FileNotFoundError as e:
-            on_line(f"    {e}")
+        except FileNotFoundError:
+            why = f"{step.argv[0]} isn't installed on this system."
             ok = False
-        on_line("    done" if ok else f"    FAILED ({' '.join(step.argv[:3])} ...)")
+        if not ok:
+            why = why or explain_failure(seen, step.argv, live)
+            if not step.apps:                     # a shared step (adding Flathub): the apps after it say why
+                setup_error = setup_error or why
+            if errors is not None:
+                for app_id in step.apps:
+                    errors.setdefault(app_id, setup_error or why)
+        on_line("    done" if ok else f"    FAILED: {why}")
         report(i, len(steps), step, "done" if ok else "failed", 100 if ok else last)
         for app_id in step.apps:
             result[app_id] = ok and result.get(app_id, True)
     return result
 
 
-def summary(result: Dict[str, bool], catalog: Dict[str, App], names: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
-    """The notification after an install: (title, body) naming every app installed and every one that failed."""
+def summary(result: Dict[str, bool], catalog: Dict[str, App], names: Optional[Dict[str, str]] = None,
+            errors: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
+    """The notification after an install: (title, body) naming every app installed and every one that failed,
+    with the reason when ``errors`` has it."""
     names = {**{i: a.name for i, a in catalog.items()}, **(names or {})}    # Store results aren't all in the catalog
+    errors = errors or {}
     ok = [names[i] for i, good in result.items() if good and i in names]
-    bad = [names[i] for i, good in result.items() if not good and i in names]
+    bad = [names[i] + (f" ({errors[i]})" if errors.get(i) else "")
+           for i, good in result.items() if not good and i in names]
     if ok and not bad:
         title = f"Installed {len(ok)} app{'s' if len(ok) != 1 else ''}"
     elif ok:
@@ -252,10 +308,11 @@ def summary(result: Dict[str, bool], catalog: Dict[str, App], names: Optional[Di
 
 
 def finish(result: Dict[str, bool], catalog: Dict[str, App], run: Callable = subprocess.run, names=None,
-           which: Callable[[str], Optional[str]] = shutil.which) -> Tuple[str, str]:
+           which: Callable[[str], Optional[str]] = shutil.which,
+           errors: Optional[Dict[str, str]] = None) -> Tuple[str, str]:
     """After an install: rebuild the app menu so new apps show up without logging out, and say what was
     installed in a desktop notification (Linux). Returns the notification's (title, body)."""
-    title, body = summary(result, catalog, names)
+    title, body = summary(result, catalog, names, errors)
     quiet = dict(capture_output=True, timeout=60)
     for cmd in (["kbuildsycoca6"], ["update-desktop-database", os.path.expanduser("~/.local/share/applications")]):
         if which(cmd[0]):

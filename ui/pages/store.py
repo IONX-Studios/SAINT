@@ -11,7 +11,7 @@ votes / the PKGBUILD link / what to expect, and wait for a yes before anything r
 
 from collections import deque
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
@@ -39,14 +39,18 @@ class StorePage(Page):
         bar = QHBoxLayout()
         self.query = QLineEdit()
         self.query.setPlaceholderText("Search apps — Blender, Roblox Studio, VS Code, Notepad++…")
+        self.query.setClearButtonEnabled(True)
+        # Live search: results follow the text as it's typed (debounced), and an empty box shows the picks at once.
+        self._seq = 0
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.timeout.connect(self.search)
+        self.query.textChanged.connect(self._typed)
         self.query.returnPressed.connect(self.search)
         bar.addWidget(self.query, 1)
-        go = QPushButton("Search")
-        go.clicked.connect(self.search)
-        bar.addWidget(go)
         self.root.addLayout(bar)
         self.filter = Segmented([f[0] for f in FILTERS])
-        self.filter.changed.connect(lambda _i: self._show_results())
+        self.filter.changed.connect(lambda _i: self._show_results() if self.query.text().strip() else None)
         self.root.addWidget(self.filter, 0, Qt.AlignLeft)
 
         # Install queue: what's running, how far, and its log.
@@ -144,16 +148,33 @@ class StorePage(Page):
         self.query.setText(catalog_id)
         self.search()
 
+    def _typed(self, text):
+        if not text.strip():
+            self._debounce.stop()
+            self.search()
+        else:
+            self._debounce.start(350)
+
     def search(self):
+        self._debounce.stop()
+        self._seq += 1
+        seq = self._seq
         q = self.query.text().strip()
         if not q:
+            self._results = []
+            self.status.setText("")
             self._show_picks()
+            return
+        if len(q) < 2:
             return
         from core import store
         self.status.setText(f"Searching Arch, Flathub, the AUR and Windows apps for “{q}”…")
-        run_async(lambda: store.search(q), self._got, lambda e: self.status.setText(f"Search failed: {e}"))
+        run_async(lambda: store.search(q), lambda res: self._got(seq, res),
+                  lambda e: seq == self._seq and self.status.setText(f"Search failed: {e}"))
 
-    def _got(self, results):
+    def _got(self, seq, results):
+        if seq != self._seq:                  # an older query finished after a newer one started
+            return
         self._results = results
         self._show_results()
 
@@ -211,8 +232,10 @@ class StorePage(Page):
                 raise RuntimeError(" ".join(errors))
             for w in warnings:
                 self._bridge.line.emit(w)
+            self._errors = {}
             return sa.run_plan(steps, on_line=self._bridge.line.emit,
-                               on_step=lambda i, n, s, st, p: self._bridge.step.emit(i, n, s.label, st, p))
+                               on_step=lambda i, n, s, st, p: self._bridge.step.emit(i, n, s.label, st, p),
+                               errors=self._errors)
         run_async(work, self._done, self._failed)
 
     def _log_line(self, text):
@@ -230,7 +253,10 @@ class StorePage(Page):
         except Exception:
             catalog = {}
         r = self._current
-        title, body = sa.finish(result or {r.id: False}, catalog, names={r.id: r.name})
+        title, body = sa.finish(result or {r.id: False}, catalog, names={r.id: r.name},
+                                errors=getattr(self, "_errors", None))
+        if result and not all(result.values()):
+            self.job_log.show()                           # a failure shows its log without another click
         self.job_label.setText(f"{title}: " + body.replace("\n", "  "))
         self.job_bar.setValue(100)
         self._busy = False

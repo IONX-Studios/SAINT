@@ -188,6 +188,8 @@ class MainWindow(QMainWindow):
         page = self.page_map.get(name) or self.overview
         if self.stack.currentWidget() is page and self.sidebar.current() == name:
             return
+        if self.sidebar.current() and self.sidebar.current() != name:
+            self.previous_page = self.sidebar.current()           # Halo's Back button returns here
         self.stack.setCurrentWidget(page)
         self.sidebar.select(name, animate)
         if animate:

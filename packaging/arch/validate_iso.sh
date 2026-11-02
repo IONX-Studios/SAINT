@@ -100,6 +100,8 @@ check "boot doesn't wait for the network" test ! -e "$S/network-online.target.wa
   || fail "systemd-firstboot would stop the boot to ask questions"
 check "a timezone is set (/etc/localtime)" test -L "$R/etc/localtime"
 grep -q '^X-KDE-Shortcuts=Alt+`' "$R/usr/share/kglobalaccel/saint-overlay.desktop" && pass "Alt+\` opens SAINT's overlay" || fail "overlay shortcut missing"
+grep -q '^Walk Through Windows of Current Application=none,' "$R/etc/xdg/kglobalshortcutsrc" && pass "KWin doesn't take Alt+\`" || fail "KWin's window switcher still owns Alt+\`"
+[ -s "$R/opt/saint/app/data/tts/kokoro-onnx/kokoro-v1.0.onnx" ] && pass "Kokoro voice ships in the image" || fail "Kokoro model missing from /opt/saint"
 grep -q 'applications:saint.desktop' "$R/usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/saintos-defaults.js" \
   && pass "SAINT pinned once on the taskbar" || fail "SAINT isn't pinned"
 grep -q '^ConditionKernelCommandLine=archisobasedir' "$S/halo-live.service" && pass "live setup only runs on the live ISO" || fail "halo-live.service has no live-only condition"

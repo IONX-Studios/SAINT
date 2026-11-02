@@ -11,13 +11,13 @@ Appearance (notifications.actions) or from the overlay.
 import re
 import time
 
-from PySide6.QtCore import QEasingCurve, QPoint, QRectF, Qt, QTimer
+from PySide6.QtCore import QEasingCurve, QPoint, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from core.config import config
 from core.events import EventType
-from ui import icons, motion
+from ui import icons, motion, placement
 from ui.reactive import ui_bus
 from ui.theme import current_palette
 from ui.widgets import ElidedLabel, with_alpha
@@ -227,7 +227,12 @@ class ActionNotice(QWidget):
                    self.sub.fontMetrics().horizontalAdvance(self.sub.text()))
         self.setFixedSize(int(max(260, min(560, want + 16 + 28 + 12 + 22))), 58)
         if self.isVisible() and not self._closing:
-            self.move(self._home())
+            self._place(self._home())
+
+    def _place(self, target: QPoint):
+        """move() — and on Wayland, where KWin ignores it and would centre the pill, the KWin script's place."""
+        self.move(target)
+        placement.wayland_place(self, QRect(target, self.size()), "SAINT notice")
 
     def _home(self) -> QPoint:
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
@@ -238,15 +243,17 @@ class ActionNotice(QWidget):
         target = self._home()
         self._closing = False
         if self.isVisible():
-            self.move(target)
+            self._place(target)
             self.setWindowOpacity(1.0)
             self.update()
             return
-        self.move(target + QPoint(0, 18))
+        wayland = placement.on_wayland()
+        self._place(target if wayland else target + QPoint(0, 18))
         self.setWindowOpacity(0.0 if motion.enabled() else 1.0)
         self.show()
         self.raise_()
-        motion.animate(self, b"pos", target + QPoint(0, 18), target, motion.SLOW, QEasingCurve.OutBack)
+        if not wayland:                  # KWin owns the position there; the fade-in below still runs
+            motion.animate(self, b"pos", target + QPoint(0, 18), target, motion.SLOW, QEasingCurve.OutBack)
         motion.animate(self, b"windowOpacity", 0.0, 1.0, motion.BASE)
 
     def leave(self):

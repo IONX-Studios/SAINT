@@ -14,13 +14,20 @@ depends=(portaudio espeak-ng libxkbcommon xcb-util-cursor qt6-tools qt6-websocke
 makedepends=(uv)
 options=(!strip !debug !lto)
 _spacy_model=en_core_web_sm-3.8.0-py3-none-any.whl
+# Kokoro-82M for onnxruntime: SAINT's voice ships in the image, so the first words are Kokoro's and never a
+# fallback voice while a 350 MB download runs (modules/voice/kokoro_onnx.py reads app/data/tts/kokoro-onnx).
+_kokoro=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
 source=(saint-src.tar
         saint-runtime.lock
-        "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/$_spacy_model")
-noextract=(saint-src.tar "$_spacy_model")
+        "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/$_spacy_model"
+        "$_kokoro/kokoro-v1.0.onnx"
+        "$_kokoro/voices-v1.0.bin")
+noextract=(saint-src.tar "$_spacy_model" kokoro-v1.0.onnx voices-v1.0.bin)
 sha256sums=(SKIP
             SKIP
-            1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85)
+            1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85
+            7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5
+            bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d)
 
 # build_iso.sh points these at caches in its workdir, so a rebuild doesn't download ~1 GB again.
 _uv_env() {
@@ -57,6 +64,7 @@ package() {
   _uv_env
   uv pip install --link-mode=copy --python "$root/venv/bin/python" --no-deps --find-links "$srcdir" -r "$srcdir/saint-runtime.lock"
   cp -a "$srcdir/app" "$root/app"
+  install -Dm0644 -t "$root/app/data/tts/kokoro-onnx" "$srcdir/kokoro-v1.0.onnx" "$srcdir/voices-v1.0.bin"
 
   # The package fails here, not on someone's desktop, if SAINT's runtime doesn't import.
   (cd "$root/app" && QT_QPA_PLATFORM=offscreen "$root/venv/bin/python" - <<'PY'
@@ -74,6 +82,14 @@ for m in mods:
 if bad:
     sys.exit("SAINT runtime imports failed:\n  " + "\n  ".join(bad))
 print("SAINT runtime imports OK")
+# Kokoro must really speak from the packaged files, not just import.
+from modules.voice import kokoro_onnx
+assert kokoro_onnx.available(), f"Kokoro files missing in {kokoro_onnx.model_dir()}"
+from core.voice_check import test_kokoro
+res = test_kokoro(play=False, download=False)
+if not res["ok"]:
+    sys.exit("Kokoro synthesis failed: " + res["detail"])
+print("Kokoro OK:", res["detail"])
 PY
   )
 
@@ -113,6 +129,16 @@ PY
   # The SAINT desktop widget.
   install -d "$pkgdir/usr/share/plasma/plasmoids"
   cp -a "$fs/usr/share/plasma/plasmoids/org.saintos.saint" "$pkgdir/usr/share/plasma/plasmoids/"
+  # Plasma gives Alt+` to KWin's "Walk Through Windows of Current Application" (a window switcher), which
+  # takes the key before SAINT's binding can: Alt+` then switches windows and the overlay never opens.
+  # Halo's default hands Alt+` to SAINT; the switcher keeps Alt+~ (reverse) and stays in Settings > Shortcuts.
+  install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kglobalshortcutsrc" <<'EOF'
+[kwin]
+Walk Through Windows of Current Application=none,Alt+`,Walk Through Windows of Current Application
+
+[services][saint-overlay.desktop]
+_launch=Alt+`
+EOF
   install -Dm0644 /dev/stdin "$pkgdir/etc/xdg/kwinrc" <<'EOF'
 [Plugins]
 saint-shellEnabled=true

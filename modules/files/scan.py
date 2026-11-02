@@ -27,7 +27,88 @@ _ONLINE_ONLY = 0x400000 | 0x40000 | 0x1000   # RECALL_ON_DATA_ACCESS | RECALL_ON
 _lock = threading.Lock()
 
 
+# Linux: what a person calls storage. Not the ISO, squashfs/EROFS images, RAM filesystems or snap/flatpak loops.
+_NETWORK_FS = {"nfs", "nfs4", "cifs", "smb3", "smbfs", "fuse.sshfs", "9p", "davfs", "fuse.rclone"}
+_SKIP_FS = {"squashfs", "erofs", "iso9660", "udf", "tmpfs", "devtmpfs", "ramfs", "proc", "sysfs", "cgroup2",
+            "devpts", "securityfs", "pstore", "efivarfs", "bpf", "debugfs", "tracefs", "configfs", "fusectl",
+            "mqueue", "hugetlbfs", "autofs", "binfmt_misc", "nsfs", "fuse.portal", "fuse.gvfsd-fuse", "rpc_pipefs"}
+_SKIP_PREFIXES = ("/run/archiso", "/run/initramfs", "/snap/", "/var/lib/snapd", "/var/lib/flatpak/", "/proc",
+                  "/sys", "/dev", "/run/user/", "/var/lib/docker", "/var/lib/containers")
+
+
+def _mount_name(mount: str, fstype: str) -> str:
+    if fstype == "overlay" and mount == "/":
+        return "Live session"
+    return {"/": "System", "/home": "Home", "/boot": "Boot", "/boot/efi": "EFI", "/efi": "EFI"}.get(
+        mount, mount.rstrip("/").rsplit("/", 1)[-1] or mount)
+
+
+def linux_filesystems(partitions=None, usage=None, stat=os.stat) -> List[Dict]:
+    """Mounted filesystems, each once: Btrfs subvolumes and bind mounts of one filesystem share a device
+    number, so ``/`` and ``/home`` on one Btrfs volume are one entry (the shortest mount point).
+
+    total/used/free are the filesystem's own numbers (statvfs); ``reserved`` is what it keeps back for root
+    (ext4's 5 %), so used + free + reserved == total."""
+    import psutil
+    partitions = partitions if partitions is not None else psutil.disk_partitions(all=True)
+    usage = usage or psutil.disk_usage
+    seen: Dict = {}
+    for part in partitions:
+        mount, fstype = part.mountpoint, (part.fstype or "").lower()
+        if fstype in _SKIP_FS or not fstype or any(mount == p.rstrip("/") or mount.startswith(p)
+                                                   for p in _SKIP_PREFIXES):
+            continue
+        if fstype == "overlay" and mount != "/":
+            continue
+        try:
+            key = stat(mount).st_dev if fstype not in _NETWORK_FS else (part.device, mount)
+            u = usage(mount)
+        except OSError:
+            continue
+        if u.total <= 0:
+            continue
+        if key in seen and len(seen[key]["drive"]) <= len(mount):
+            continue
+        kind = ("network" if fstype in _NETWORK_FS else "live" if fstype == "overlay" else
+                "removable" if mount.startswith(("/run/media/", "/media/", "/mnt/")) else "internal")
+        seen[key] = {"drive": mount, "letter": mount, "name": _mount_name(mount, fstype),
+                     "device": part.device, "fstype": fstype, "kind": kind,
+                     "total": u.total, "used": u.used, "free": u.free,
+                     "reserved": max(0, u.total - u.used - u.free), "percent": round(u.percent, 1),
+                     "label": f"{part.device} · {fstype}" + (" · in memory" if kind == "live" else "")}
+    order = {"live": 0, "internal": 1, "removable": 2, "network": 3}
+    return sorted(seen.values(), key=lambda d: (order[d["kind"]], d["drive"] != "/", d["drive"]))
+
+
+def disks(run=None) -> List[Dict]:
+    """Physical disks from lsblk: size, model, and space no partition uses (unallocated) — separate from any
+    filesystem's free space. Linux only; [] elsewhere or without lsblk."""
+    if os.name == "nt" and run is None:
+        return []
+    import json, subprocess
+    run = run or (lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=10).stdout)
+    try:
+        data = json.loads(run(["lsblk", "-J", "-b", "-o", "NAME,PATH,SIZE,TYPE,MODEL,RM,TRAN"]) or "{}")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return []
+    out = []
+    for d in data.get("blockdevices", []):
+        if d.get("type") != "disk" or str(d.get("name", "")).startswith(("loop", "zram", "sr", "ram")):
+            continue
+        size = int(d.get("size") or 0)
+        parts = [c for c in d.get("children") or [] if c.get("type") == "part"]
+        used = sum(int(c.get("size") or 0) for c in parts)
+        # GPT keeps ~1 MiB at each end and partitions align to 1 MiB: under 16 MiB isn't usable space.
+        free = size - used if size - used >= 16 * 1024 ** 2 else 0
+        out.append({"path": d.get("path") or f"/dev/{d.get('name')}", "model": (d.get("model") or "").strip(),
+                    "size": size, "partitioned": used, "unallocated": free, "partitions": len(parts),
+                    "removable": bool(d.get("rm")), "transport": d.get("tran") or ""})
+    return out
+
+
 def drive_overview() -> List[Dict]:
+    if os.name != "nt":
+        return linux_filesystems()
     from modules.files.paths import fixed_drives
     import psutil
     out = []

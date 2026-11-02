@@ -9,7 +9,10 @@ thinking, a pulse while speaking. While music plays it takes on the album
 cover's colour.
 
 Four thin click-through windows (one per edge) do the drawing, so nothing on
-screen is ever blocked. Resting the cursor on the top-centre edge reveals a
+screen is ever blocked. On Wayland, where KWin decides where windows go, a thin
+strip that isn't placed lands in the middle of the screen (four of them make a
+cross), so there the Halo is one click-through window the size of each screen
+that only paints its edges: a screen-sized window can only cover the screen. Resting the cursor on the top-centre edge reveals a
 small SAINT tab; clicking it opens the overlay.
 """
 
@@ -17,7 +20,7 @@ import math
 import time
 
 from PySide6.QtCore import QEasingCurve, QObject, QPoint, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QCursor, QGuiApplication, QLinearGradient, QPainter, QPainterPath
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QLinearGradient, QPainter, QPainterPath, QRegion
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from core.config import config
@@ -72,6 +75,62 @@ class _Strip(QWidget):
     def paintEvent(self, _):
         g = QPainter(self)
         self.halo.paint_strip(self, g)
+        g.end()
+
+
+class _Edge:
+    """One edge of a _Frame, shaped like a _Strip for Halo.paint_strip."""
+
+    def __init__(self, edge: str, screen_geo: QRect, rect: QRect):
+        self.edge, self.screen_geo, self.local = edge, screen_geo, rect
+
+    def width(self):
+        return self.local.width()
+
+    def height(self):
+        return self.local.height()
+
+    def rect(self):
+        return QRect(0, 0, self.local.width(), self.local.height())
+
+
+def edge_rects(w: int, h: int, t: int = THICK) -> dict:
+    """The four edge bands of a w x h screen (local coordinates): full-width top/bottom, sides between them."""
+    return {"top": QRect(0, 0, w, t), "bottom": QRect(0, h - t, w, t),
+            "left": QRect(0, t, t, h - 2 * t), "right": QRect(w - t, t, t, h - 2 * t)}
+
+
+class _Frame(QWidget):
+    """The whole Halo for one screen in one click-through window (Wayland)."""
+
+    def __init__(self, halo, screen):
+        super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+                         | Qt.WindowTransparentForInput | Qt.WindowDoesNotAcceptFocus | Qt.NoDropShadowWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.halo = halo
+        geo = screen.geometry()
+        self.screen_geo = QRect(geo)
+        self.setScreen(screen)
+        self.setGeometry(geo)
+        self.edges = [_Edge(e, QRect(geo), r) for e, r in edge_rects(geo.width(), geo.height()).items()]
+        self._region = QRegion()
+        for e in self.edges:
+            self._region += QRegion(e.local)
+        placement.wayland_place(self, geo, "SAINT Halo frame")
+
+    def repaint_edges(self):
+        self.update(self._region)                    # only the bands, never the middle of the screen
+
+    def paintEvent(self, _):
+        g = QPainter(self)
+        for e in self.edges:
+            g.save()
+            g.translate(e.local.topLeft())
+            g.setClipRect(e.rect())
+            self.halo.paint_strip(e, g)
+            g.restore()
         g.end()
 
 
@@ -221,13 +280,14 @@ class Halo(QObject):
         if not self._visible:
             return
         for sc in self._screens():
-            geo, t = sc.geometry(), THICK
-            rects = {"top": QRect(geo.x(), geo.y(), geo.width(), t),
-                     "bottom": QRect(geo.x(), geo.y() + geo.height() - t, geo.width(), t),
-                     "left": QRect(geo.x(), geo.y() + t, t, geo.height() - 2 * t),
-                     "right": QRect(geo.x() + geo.width() - t, geo.y() + t, t, geo.height() - 2 * t)}
-            for edge, r in rects.items():
-                strip = _Strip(self, edge, QRect(geo), r)
+            geo = sc.geometry()
+            if placement.on_wayland():
+                frame = _Frame(self, sc)
+                frame.show()
+                self._strips.append(frame)
+                continue
+            for edge, r in edge_rects(geo.width(), geo.height()).items():
+                strip = _Strip(self, edge, QRect(geo), r.translated(geo.topLeft()))
                 strip.show()
                 self._strips.append(strip)
 
@@ -277,9 +337,9 @@ class Halo(QObject):
         if self._timer.interval() != interval:
             self._timer.setInterval(interval)
         for s in self._strips:
-            s.update()
+            s.repaint_edges() if isinstance(s, _Frame) else s.update()
 
-    def paint_strip(self, strip: _Strip, g: QPainter):
+    def paint_strip(self, strip, g: QPainter):
         geo = strip.screen_geo
         W, H, T = geo.width(), geo.height(), THICK
         P = 2 * W + 2 * H

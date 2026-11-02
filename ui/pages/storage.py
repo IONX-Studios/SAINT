@@ -78,16 +78,19 @@ class StorageCard(Card):
 
     # ------------------------------------------------------------------ #
     def refresh(self):
-        from modules.files.scan import drive_overview
-        run_async(drive_overview, self._set_drives)
+        from modules.files.scan import disks, drive_overview
+        run_async(lambda: (drive_overview(), disks()), lambda res: self._set_drives(*res))
 
-    def _set_drives(self, drives):
+    def _set_drives(self, drives, physical=()):
         p = current_palette()
         self._drives = drives
         clear_layout(self.drive_rows)
         for d in drives:
             row = QHBoxLayout()
-            name = QLabel(f"{d['letter']}:" + (f"  {d['label']}" if d.get("label") else ""))
+            name = QLabel(d["name"] if d.get("name") else f"{d['letter']}:" + (f"  {d['label']}" if d.get("label") else ""))
+            if d.get("name"):
+                name.setToolTip(f"{d['drive']} — {d.get('label', '')}"
+                                + (f"\n{_human(d['reserved'])} reserved by the filesystem" if d.get("reserved") else ""))
             name.setStyleSheet("font-weight: 600;")
             name.setFixedWidth(150)
             bar = QProgressBar()
@@ -105,7 +108,13 @@ class StorageCard(Card):
             row.addWidget(bar, 1)
             row.addWidget(text)
             self.drive_rows.addLayout(row)
-        labels = [f"{d['letter']}:" for d in drives] or ["C:"]
+        for disk in physical:                   # disk space no partition uses, never mixed with free space
+            if disk["unallocated"]:
+                note = QLabel(f"{disk['path']} {disk['model']}: {_human(disk['unallocated'])} unallocated "
+                              f"(not in any partition) of {_human(disk['size'])}")
+                note.setObjectName("Faint")
+                self.drive_rows.addWidget(note)
+        labels = [d.get("name") or f"{d['letter']}:" for d in drives] or ["C:"]
         if labels != getattr(self, "_labels", None):
             self._labels = labels
             new = Segmented(labels)

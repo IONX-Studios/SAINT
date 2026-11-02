@@ -193,14 +193,19 @@ def open_path(path: str) -> bool:
     return False
 
 
-def launch_saint() -> bool:
+def launch_saint(*args: str) -> bool:
     exe = "/usr/bin/saint"
     if os.path.exists(exe):
-        subprocess.Popen([exe], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([exe, *args], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     root = Path(__file__).resolve().parent.parent
-    subprocess.Popen([sys.executable, str(root / "app.py")], cwd=str(root), start_new_session=True)
+    subprocess.Popen([sys.executable, str(root / "app.py"), *args], cwd=str(root), start_new_session=True)
     return True
+
+
+# How the Apps page opens the full Store: SAINT's own window replaces this when the page lives inside it
+# (ui/pages/halo_os.py); the standalone Control Center asks the running SAINT.
+open_store: Callable[[], object] = lambda: launch_saint("--page", "Store")
 
 
 def run_selftest() -> Dict:
@@ -326,7 +331,7 @@ def build_window(start_page: str = "Welcome"):
     v.addWidget(info)
     wrow = QHBoxLayout()
     open_btn = QPushButton("Open SAINT")
-    open_btn.clicked.connect(launch_saint)
+    open_btn.clicked.connect(lambda: launch_saint())
     apps_btn = QPushButton("Install my apps…")
     apps_btn.clicked.connect(lambda: nav.setCurrentRow(PAGES.index("Apps")))
     wrow.addWidget(open_btn)
@@ -368,8 +373,11 @@ def build_window(start_page: str = "Welcome"):
     common_btn = QPushButton("Common picks")
     clear_btn = QPushButton("Clear")
     install_btn = QPushButton("Install selected")
+    store_btn = QPushButton("Search every app in the Store…")
+    store_btn.setToolTip("Arch, the AUR, Flathub and Windows apps in one search")
+    store_btn.clicked.connect(lambda: open_store())
     astatus = QLabel("")
-    for b in (common_btn, clear_btn, install_btn):
+    for b in (common_btn, clear_btn, install_btn, store_btn):
         arow.addWidget(b)
     arow.addWidget(astatus, 1)
     v.addLayout(arow)
@@ -420,11 +428,13 @@ def build_window(start_page: str = "Welcome"):
             if isinstance(res, Exception):
                 astatus.setText(f"Stopped: {res}")
                 return
-            title, body = sa.finish(res, catalog)          # menu refreshed + notification listing the apps
+            title, body = sa.finish(res, catalog, errors=install_errors)   # menu refreshed + notification
             astatus.setText(f"{title}. " + body.replace("\n", "  "))
             mark_installed()
+        install_errors: Dict[str, str] = {}
         in_background(lambda: sa.run_plan(steps, on_line=lambda t: bridge.line.emit(alog.appendPlainText, t),
-                                          on_step=lambda *a: bridge.line.emit(lambda _t: progress(*a), "")),
+                                          on_step=lambda *a: bridge.line.emit(lambda _t: progress(*a), ""),
+                                          errors=install_errors),
                       finished)
     install_btn.clicked.connect(do_install)
     if catalog and os.name != "nt":
@@ -542,9 +552,62 @@ def build_window(start_page: str = "Welcome"):
     form.addRow("", wake)
     form.addRow("", auto)
     v.addLayout(form)
-    vstat = QLabel(f"Speech recognition: {config.get('voice.stt_backend', 'faster_whisper')} "
-                   f"({config.get('voice.stt_model', 'base.en')}) · Voice: {config.get('voice.tts_backend', 'kokoro')}")
+    # What SAINT really speaks and hears with, from files and tests (core/voice_check.py), never the config alone.
+    vstat = QLabel("Checking the voice system…")
+    vstat.setWordWrap(True)
+    vstat.setTextInteractionFlags(Qt.TextSelectableByMouse)
     v.addWidget(vstat)
+
+    def voice_service():
+        try:
+            from modules.voice.tts_service import TTSService
+            return TTSService._instance if getattr(TTSService, "_instance", None) else None
+        except Exception:
+            return None
+
+    def show_voice(res):
+        if isinstance(res, Exception):
+            vstat.setText(f"Couldn't read the voice system: {res}")
+            return
+        vstat.setText("\n".join(f"{k}: {val}" for k, val in res.items()))
+
+    def refresh_voice():
+        from core import voice_check
+        in_background(lambda: voice_check.status(voice_service()), show_voice)
+
+    trow = QHBoxLayout()
+    test_tts = QPushButton("Test Kokoro voice")
+    test_stt = QPushButton("Test Whisper")
+    tmsg = QLabel("")
+    tmsg.setWordWrap(True)
+    for b in (test_tts, test_stt):
+        trow.addWidget(b)
+    trow.addStretch(1)
+    v.addLayout(trow)
+    v.addWidget(tmsg)
+
+    def tested(res):
+        test_tts.setEnabled(True)
+        test_stt.setEnabled(True)
+        if isinstance(res, Exception):
+            tmsg.setText(f"Test failed: {res}")
+        else:
+            tmsg.setText(("Passed — " if res["ok"] else "FAILED — ") + res["detail"])
+        refresh_voice()
+
+    def run_test(which):
+        from core import voice_check
+        test_tts.setEnabled(False)
+        test_stt.setEnabled(False)
+        if which == "kokoro":
+            tmsg.setText("Synthesising with Kokoro (downloads the voice first if it's missing)…")
+            in_background(voice_check.test_kokoro, tested)
+        else:
+            in_background(lambda: voice_check.test_whisper(
+                on_status=lambda t: bridge.line.emit(tmsg.setText, t)), tested)
+    test_tts.clicked.connect(lambda: run_test("kokoro"))
+    test_stt.clicked.connect(lambda: run_test("whisper"))
+    refresh_voice()
     vsave = QPushButton("Save")
     vmsg = QLabel("")
 

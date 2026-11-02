@@ -26,6 +26,7 @@ Only tests that actually ran are listed. "Not run" is said explicitly.
 
 | Test | Result |
 |---|---|
+| Build #8 ISO (commit 22b5052, includes Workstream B) | built and validated (ALL CHECKS PASSED, incl. Halo Remote host installed and off, GStreamer webrtc/pipewire/x264/vpx plugins); Kokoro synthesis in the package build 6.3 s for 2.6 s of speech; copied to `dist/halo/build8/` over SSH, SHA-256 OK; **not boot-tested** |
 | Build #7 ISO | built and validated (ALL CHECKS PASSED: Task Manager shortcut, Halo/Music widgets, Halo Dark/Light, Alt+`, Kokoro); first copy to Windows failed mid-way (`Invalid cross-device link`, file opened on the Windows side) and left a truncated ISO — the cause of the failed USB write; recopied over SSH via a `.part` file |
 | Merge of Workstream B into `halo/arch-rebase` | 1647 Python tests pass (same 4 old failures), 19 browser-client tests pass; pushed to `origin/halo/arch-rebase` |
 | Build #6 ISO | built and validated (ALL CHECKS PASSED, incl. Secure Boot step and Kokoro in image); copied to `dist/halo/build6/`, SHA-256 OK; **not boot-tested** (skipped at user's request, build #7 next) |

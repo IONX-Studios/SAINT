@@ -36,9 +36,9 @@ Status key: ✅ done and verified · 🔧 implemented, needs VM/hardware verific
 - ☐ Heroic + one app per source installed and launched in the VM (test matrix)
 
 ## Priority 3 — desktop
-- ☐ Halo Dark / Halo Light (Plasma colour schemes + SAINT palette from one token set)
-- ☐ SAINT Task Manager app + Ctrl+Shift+Esc (a task-manager backend exists: `modules/desktop/taskmgr.py`)
-- ☐ Floating Halo widget (Plasma plasmoid), music widget (MPRIS)
+- 🔧 Halo Dark / Halo Light (Plasma colour schemes generated from SAINT's palette) — build 7
+- 🔧 SAINT Task Manager app + Ctrl+Shift+Esc — build 7 (verified on Windows data; Linux pages need the VM)
+- 🔧 Floating Halo widget, SAINT Music widget (MPRIS via playerctl) — build 7 (QML syntax-checked only)
 - 🔧 Star close animation (`saint-star` KWin effect exists) — review against the brief, reduced-motion, test transitions
 
 ## Priority 4–5 — remote access and iPhone (Workstream B)

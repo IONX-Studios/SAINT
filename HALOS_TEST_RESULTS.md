@@ -12,7 +12,21 @@ Only tests that actually ran are listed. "Not run" is said explicitly.
 | Halo frame render (offscreen Qt, 800×800) | centre pixel alpha 0, top edge alpha 128 — paints edges only |
 | Kokoro model download from upstream | 2 files, SHA-256 recorded in the PKGBUILD |
 
+## 2026-11-02 — build 7 features (Windows dev host)
+
+| Test | Result |
+|---|---|
+| `tests/test_sysinfo.py` (9) + new packaging tests in `test_halos_repairs.py` | passed |
+| Full suite | 1596 passed, 5 skipped, same 4 pre-existing failures |
+| Task Manager offscreen on this PC's real data | 159/348 processes listed, CPU/memory/disk/network graphs, RTX A1000 found via nvidia-smi (42 °C), dark and light palettes rendered |
+| Halo + Music widget QML | parses (`qmlformat`); **not run** — needs Plasma (VM) |
+| Halo Dark/Light colour schemes | generated from `ui/theme.py`; test checks the shipped files match; **not seen in Plasma yet** |
+
 ## Halo VM / ISO
+
+| Test | Result |
+|---|---|
+| Build #6 `saint` package: Kokoro synthesis from the packaged files | **passed** — "2.6s of speech in 14.51s" (first run in a VM container, includes ONNX warm-up; speed on real hardware still to measure) |
 
 | Test | Result |
 |---|---|

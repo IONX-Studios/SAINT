@@ -13,6 +13,7 @@ struct SaintApp: App {
                 .environmentObject(model.spotify)
                 .environmentObject(model.voice)
                 .environmentObject(model.speaker)
+                .environmentObject(model.remote)
                 .task { await model.start() }
                 .onOpenURL { model.handleOpen($0) }
         }

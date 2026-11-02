@@ -38,6 +38,8 @@ final class AppSettings: ObservableObject {
     @Published var listenBothLanguages: Bool { didSet { defaults.set(listenBothLanguages, forKey: "listenBothLanguages") } }
     /// The playlist "add this to my playlist" used last.
     @Published var lastPlaylist: String { didSet { defaults.set(lastPlaylist, forKey: "lastPlaylist") } }
+    /// Halo Remote: the relay your PC uses (`halo-remote status` on the PC), e.g. wss://relay.example.com/ws.
+    @Published var remoteRelayURL: String { didSet { defaults.set(remoteRelayURL, forKey: "remoteRelayURL") } }
 
     var claudeKey: String {
         get { keychain.string("claude.api.key") ?? "" }
@@ -73,6 +75,7 @@ final class AppSettings: ObservableObject {
         wakeSensitivity = d.object(forKey: "wakeSensitivity") == nil ? 0.5 : d.double(forKey: "wakeSensitivity")
         listenBothLanguages = bool("listenBothLanguages", false)
         lastPlaylist = d.string(forKey: "lastPlaylist") ?? ""
+        remoteRelayURL = d.string(forKey: "remoteRelayURL") ?? ""
     }
 
     static func defaultDeviceName() -> String {

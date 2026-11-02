@@ -52,6 +52,21 @@ page — is in the rest of this repository. The phone and the PC share their lan
 
 ## Honest status
 
+**Unreleased — Halo Remote (see and control your PC from the phone), `saint-mobile` branch:**
+
+- Devices → **Halo Remote**: enter the relay address your PC uses (`halo-remote status` on the PC), and your paired PCs
+  show online/offline; **Connect** asks the PC (or goes straight in if you set this iPhone to *allow* there). No second
+  pairing: the phone uses its Link key. Design and protocol: [docs/REMOTE_DESKTOP.md](../docs/REMOTE_DESKTOP.md).
+- Live view through WebRTC (the `stasel/WebRTC` package — Google's WebRTC.framework), tap = click, long press or
+  two-finger tap = right click, drag = drag, two-finger pan = scroll, pinch = zoom the picture; the iPhone keyboard types
+  on the PC; Ctrl+Alt+Del / Super / Esc / arrows menu; clipboard both ways; send a file (checked by SHA-256 on the PC);
+  stats (direct or via TURN, round trip, fps, bitrate); reconnects by itself after a dropped connection (5 tries).
+- *Tested here:* nothing on the Swift side — it was written on Windows without a Swift toolchain. `SaintCore/Remote`
+  (protocol, session state machine, relay client, gestures) has XCTest cases against `remote_vectors.json`, the same
+  known answers the Python and browser implementations pass; they run in CI (`mobile-ios.yml`, `swift test`). The
+  SwiftUI/WebRTC screens (`SaintMobile/Remote`) are only checked by the CI's `xcodebuild` once it runs.
+- *Limits:* the app is portrait-only on iPhone, so the desktop is letterboxed (pinch to zoom); iPad rotates.
+
 **Unreleased — your PC's brain whenever it can be reached:**
 
 - Anything the phone doesn't do itself goes to your PC's SAINT first — the phone dials it if the link is down (up to
@@ -117,8 +132,10 @@ layout).
 
 ```bash
 cd ios
-swift test                       # SaintCore tests (macOS or Linux with a Swift toolchain)
+swift test                       # SaintCore tests (macOS or Linux with a Swift toolchain), incl. Halo Remote
 brew install xcodegen && xcodegen generate && open SaintMobile.xcodeproj    # the app
 ```
+
+`xcodegen generate` also resolves the WebRTC package (a ~30 MB binary download, first time only).
 
 Requirements: iOS 17+, Xcode 16+ (Liquid Glass and the on-device model light up automatically with Xcode 26 / iOS 26).

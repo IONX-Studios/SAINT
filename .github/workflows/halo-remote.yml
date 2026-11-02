@@ -1,0 +1,31 @@
+# Halo Remote (docs/REMOTE_DESKTOP.md): the protocol, the relay and the host logic in Python, the browser client in
+# Node — including the browser client against the real relay. The iPhone side runs in mobile-ios.yml (swift test).
+name: Halo Remote
+
+on:
+  push:
+    paths: ["modules/remote_desktop/**", "modules/link/identity.py", "modules/link/crypto.py", "server/relay/**",
+            "web/remote/**", "tests/test_remote_*.py", "tests/test_relay.py", "tests/data/remote_vectors.json",
+            ".github/workflows/halo-remote.yml"]
+  pull_request:
+    paths: ["modules/remote_desktop/**", "server/relay/**", "web/remote/**", "tests/data/remote_vectors.json"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Install
+        run: pip install pytest cryptography -r server/relay/requirements.txt
+      - name: Python (protocol, relay, host logic, shared data)
+        run: python -m pytest -q tests/test_remote_protocol.py tests/test_relay.py tests/test_remote_host.py tests/test_mobile_shared.py
+      - name: Browser client (node --test)
+        env: { HALO_PYTHON: python }
+        run: node --test "web/remote/test/*.test.mjs"
+      - name: Relay image builds
+        run: docker build -f server/relay/Dockerfile -t halo-relay .

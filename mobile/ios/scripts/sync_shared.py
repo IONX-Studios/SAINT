@@ -40,7 +40,7 @@ def main():
         if name.endswith(".json"):
             copy(os.path.join(lex, name), os.path.join(IOS, "Sources", "SaintCore", "Resources", "Lexicon", name))
     data = os.path.join(desktop, "tests", "data")
-    for name in ("link_vectors.json", "lang_cases.json", "time_cases.json"):
+    for name in ("link_vectors.json", "lang_cases.json", "time_cases.json", "remote_vectors.json"):
         copy(os.path.join(data, name), os.path.join(IOS, "Tests", "SaintCoreTests", "Resources", name))
 
 

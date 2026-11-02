@@ -21,8 +21,9 @@ struct RemoteDesktopView: View {
                     Text(statusText).foregroundStyle(statusColor)
                 }
             } header: { Text("Relay") } footer: {
-                Text("The address your PC uses — `halo-remote status` on the PC shows it. Your PC asks before each "
-                     + "connection unless you set this iPhone to \"allow\" for remote desktop in SAINT → Devices.")
+                Text("Filled in from your PC when it's reachable over SAINT Link (or see `halo-remote status` on the PC). "
+                     + "Your PC asks before each connection unless you set this iPhone to \"allow\" for remote desktop "
+                     + "in SAINT → Devices.")
             }
             .listRowBackground(Theme.surface)
 

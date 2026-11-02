@@ -445,6 +445,13 @@ public final class LinkManager: PCBridge {
         return try await connection.request("status.get", [:], timeout: 20)
     }
 
+    /// Where a PC's Halo Remote host can be reached: `relay_url` (empty when remote desktop isn't set up there),
+    /// `device_id`, `account`. Lets the phone fill in the relay by itself.
+    public func remoteInfo(peerID: String) async throws -> JSONObject {
+        let connection = try await connect(peerID: peerID)
+        return try await connection.request("remote.info", [:], timeout: 15)
+    }
+
     /// Share one learned thing with a collaborator, who decides whether to keep it.
     public func share(peerID: String, kind: String, uid: String, data: JSONObject) async throws {
         let connection = try await connect(peerID: peerID)

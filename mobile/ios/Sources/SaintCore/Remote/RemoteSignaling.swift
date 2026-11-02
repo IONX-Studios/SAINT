@@ -70,7 +70,8 @@ public final class RemoteSessionMachine {
         sessionID = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         state = .waiting
         return try signed("session.request", ["client": String(name.prefix(40)),
-                                              "want": ["max_w": maxWidth, "max_h": maxHeight, "fps": fps, "audio": false]])
+                                              "want": ["max_w": maxWidth, "max_h": maxHeight, "fps": fps, "audio": false,
+                                                       "codecs": ["H264", "VP8"]]])
     }
 
     public func answer(sdp: String) throws -> [String: Any] { try signed("sdp.answer", ["sdp": sdp]) }

@@ -54,8 +54,8 @@ page — is in the rest of this repository. The phone and the PC share their lan
 
 **Unreleased — Halo Remote (see and control your PC from the phone), `saint-mobile` branch:**
 
-- Devices → **Halo Remote**: enter the relay address your PC uses (`halo-remote status` on the PC), and your paired PCs
-  show online/offline; **Connect** asks the PC (or goes straight in if you set this iPhone to *allow* there). No second
+- Devices → **Halo Remote**: the relay address is fetched from your PC over SAINT Link the first time it's reachable
+  (or type it: `halo-remote status` on the PC shows it), and your paired PCs show online/offline; **Connect** asks the PC (or goes straight in if you set this iPhone to *allow* there). No second
   pairing: the phone uses its Link key. Design and protocol: [docs/REMOTE_DESKTOP.md](../docs/REMOTE_DESKTOP.md).
 - Live view through WebRTC (the `stasel/WebRTC` package — Google's WebRTC.framework), tap = click, long press or
   two-finger tap = right click, drag = drag, two-finger pan = scroll, pinch = zoom the picture; the iPhone keyboard types

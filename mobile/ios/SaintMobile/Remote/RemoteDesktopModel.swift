@@ -38,6 +38,9 @@ final class RemoteDesktopModel: ObservableObject {
         let url = settings.remoteRelayURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let peers = pcPeers
         pcs = peers.map { p in PC(peer: p, presence: pcs.first(where: { $0.id == p.id })?.presence) }
+        if url.isEmpty && !peers.isEmpty && !discovering {
+            Task { await discoverRelay(peers) }
+        }
         guard let u = URL(string: url), ["wss", "ws"].contains(u.scheme ?? ""), !peers.isEmpty else {
             stop()
             return
@@ -52,6 +55,21 @@ final class RemoteDesktopModel: ObservableObject {
         client.onMessage = { [weak self] m in Task { @MainActor in self?.session?.handle(m) } }
         relay = client
         client.start()
+    }
+
+    private var discovering = false
+
+    /// Ask the paired PCs (over Link) which relay their Halo Remote uses, so nothing has to be typed in.
+    private func discoverRelay(_ peers: [LinkPeer]) async {
+        discovering = true
+        defer { discovering = false }
+        for peer in peers {
+            guard let info = try? await link.remoteInfo(peerID: peer.id),
+                  let url = info["relay_url"] as? String, !url.isEmpty else { continue }
+            settings.remoteRelayURL = url
+            start()
+            return
+        }
     }
 
     func stop() {

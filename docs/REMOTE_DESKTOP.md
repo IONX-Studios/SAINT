@@ -37,8 +37,15 @@ the core (closed, account-bound — remains an optional Store app).
   later sessions start without anyone at the PC — so approve it once while sitting at the PC.
 - Halo Relay — `server/relay/` (Workstream B). In-memory state only (presence, each PC's device list; PCs re-send
   it on reconnect); never sees media or keystrokes.
-- Clients — `web/remote/` (static, served by the relay), the desktop client (same web client in a Tauri
-  shell), `mobile/ios` (native SwiftUI + WebRTC).
+- Clients — **SAINT's desktop app** (Windows/Linux: Devices → a PC → *Remote desktop*, `ui/remote_desktop.py`: the
+  shared viewer `web/remote/js/viewer.js` in Qt WebEngine, identity = the app's Link key, which stays in Python and
+  only lends X25519 results to the page), **the iPhone app** (`mobile/ios`, native SwiftUI + WebRTC), and the browser
+  page `web/remote/` (served by the relay). The first draft planned a separate Tauri client; SAINT's own app already
+  has the user's paired PCs and keys, so it is the downloadable client.
+- **No typing the relay in:** a paired app asks the PC over Link (`remote.info` → `{relay_url, device_id, account}`,
+  refused when the device's `remote_desktop` permission is *deny*) and remembers the answer.
+- **Codecs:** clients send `want.codecs` (what they decode); the host prefers H.264 and falls back to VP8 for
+  clients without an H.264 decoder (Qt WebEngine builds without proprietary codecs).
 
 ## Authentication
 
@@ -133,6 +140,8 @@ network drop; file transfer checksum. Cross-network: phone on cellular ↔ PC be
 | Host media path (portal, PipeWire, GStreamer webrtcbin, libsoup, wl-clipboard) | `modules/remote_desktop/media.py` | **implemented, untested** — needs a Plasma Wayland session |
 | Browser client | `web/remote/` | tested: Node unit + relay integration tests; real WebRTC checked browser-to-browser in Chromium against `test/fake_host.html` (video, mouse, keys incl. Ctrl combos, clipboard, file + SHA-256, stats, disconnect). Not yet tried on Safari/iPad or a Chromebook; touch gestures only unit-tested |
 | iPhone | `mobile/ios` (`SaintCore/Remote`, `SaintMobile/Remote`) | **written, not compiled here** (no Swift toolchain on the dev host); XCTests run in CI |
-| Desktop client (Tauri shell) | — | not started; the browser client works on Windows/Linux meanwhile |
-| SAINT -> Devices -> Remote access UI on the PC | — | not started; the `halo-remote` CLI does it |
+| Desktop client = SAINT's desktop app | `ui/remote_desktop.py`, `web/remote/desktop.html`, `js/desktop.js`, `js/viewer.js` | tested: pytest (relay lookup over Link, host record, loopback static server); real end-to-end on Windows — the Qt WebEngine window against the local relay and `test/fake_host.html`: live video 640×360 @ 30 fps, click and key delivered once each, clipboard not sent until you copy something while connected |
+| PC tells apps where Halo Remote is (`remote.info` over Link) | `modules/link/service.py` | tested (pytest) |
+| H.264 / VP8 choice | `modules/remote_desktop/host.py` | tested (pytest); the VP8 pipeline itself runs only on Halo (untested) |
+| SAINT -> Devices -> Remote access settings on the PC | — | not started; the `halo-remote` CLI does it |
 | Halo package | `packaging/arch/pkgbuilds/saint` | not changed (Workstream A owns it): needs the unit installed and `gst-plugins-bad libnice gst-plugin-pipewire gst-python python-gobject libsoup3 wl-clipboard kdialog python-keyring` |

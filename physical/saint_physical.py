@@ -125,10 +125,13 @@ MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(_HERE, "models", "ModelFi
 # TTS: Kokoro by default (SAINT_TTS=auto|pyttsx3|espeak|print to override); if Kokoro cannot load it falls back to espeak-ng
 SPEAK_MAX_CHARS = int(os.environ.get("SAINT_SPEAK_MAX_CHARS", "450"))   # spoken replies are cut at a sentence end (0 = no limit); the screen still shows everything
 TTS_ENGINE = os.environ.get("SAINT_TTS", "kokoro").lower()   # auto | kokoro | pyttsx3 | espeak | print
-KOKORO_MODEL_PATH = os.environ.get("KOKORO_MODEL", os.path.join(_HERE, "models", "kokoro", "kokoro-v1.0.int8.onnx"))
+_K_DIR = os.path.join(_HERE, "models", "kokoro")
+# the full-precision model sounds clearly more natural than int8 (download: KOKORO_FULL=1 ./setup_pi.sh); used automatically when present
+_K_FULL = os.path.join(_K_DIR, "kokoro-v1.0.onnx")
+KOKORO_MODEL_PATH = os.environ.get("KOKORO_MODEL", _K_FULL if os.path.exists(_K_FULL) else os.path.join(_K_DIR, "kokoro-v1.0.int8.onnx"))
 KOKORO_VOICES_PATH = os.environ.get("KOKORO_VOICES", os.path.join(_HERE, "models", "kokoro", "voices-v1.0.bin"))
-KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "am_michael")
-KOKORO_SPEED = float(os.environ.get("KOKORO_SPEED", "1.05"))
+KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "af_heart")   # warmest, most natural Kokoro voice; change live on the Voice & Chat tab
+KOKORO_SPEED = float(os.environ.get("KOKORO_SPEED", "1.0"))
 KOKORO_LANG = os.environ.get("KOKORO_LANG", "en-us")
 SAINT_TOKEN = _secret("SAINT_TOKEN")
 
@@ -1570,6 +1573,18 @@ def do_look(direction: str, part: str="head", degrees: Optional[int]=None):
     CONTROLLER.set_angle(key, cur + delta)
 
 # ------------ Natural language parsing (part you provided) ------------
+def is_factual_question(tl: str) -> bool:
+    """Questions a lookup can answer: "capital of France", "who invented the telephone", "how old is the moon"..."""
+    if re.search(r"\bwhat(?:'s| is)? (?:up|going on|new|happening)\b|\bwhats up\b|\bwhat(?:'s| is) your\b|\bwhat are you\b", tl):
+        return False   # chit-chat, not a lookup
+    if re.search(r"\bhow do you spell\b|\bhow tall\b|\bwhere is\b|\bwhat is\b|\bwhat's\b|\bwhat are\b|\bhow many\b|\bhow much\b|\bhow old\b|\bhow big\b|\bhow far\b|\bhow long\b", tl):
+        return True
+    if re.match(r"(?:who|whom|whose|when|where|which|why)\b", tl):
+        return True
+    if re.search(r"\b(?:capital|population|president|prime minister|currency|language|height|age|inventor|founder)\s+of\b|\bdefine\b|\bmeaning of\b|\btell me about\b", tl):
+        return True
+    return tl.startswith(("how does", "how do", "how did", "how is", "how was")) and "you" not in tl.split()[:4]
+
 def parse_command(text: str) -> Optional[dict]:
     t = text.strip()
     tl = t.lower()
@@ -1627,7 +1642,7 @@ def parse_command(text: str) -> Optional[dict]:
         return {"action": "tts", "text": m.group(2)}
 
     # factual queries
-    if not is_small_talk(t) and re.search(r"\bhow do you spell\b|\bhow tall\b|\bwhere is\b|\bwhat is\b|\bwhat's\b|\bhow many\b|\bwho is\b|\bhow far\b", tl):
+    if not is_small_talk(t) and is_factual_question(tl):
         return {"action": "answer", "query": t}
 
     # LED/servo commands (simple)
@@ -1846,7 +1861,14 @@ def process_command(text: str) -> dict:
             if re.search(r"\bwhat(?:'s| is)? up\b|\bwhat(?:'s| is)? going on\b|\bwhats up\b", tl):
                 assistant_text = "Not much — running diagnostics and waiting on your command."
             else:
-                assistant_text = chat_reply(text) or random.choice(short_replies)
+                assistant_text = chat_reply(text)
+                if not assistant_text and (text.strip().endswith("?") or re.match(r"(?i)(?:tell me|explain|what|who|why|how|when|where)\b", text.strip())):
+                    res = answer_question(text.strip())           # no language model: try a lookup before giving up
+                    assistant_text = res.get("answer") if res.get("ok") else None
+                if not assistant_text:
+                    assistant_text = (random.choice(short_replies) if llm else
+                                      "I can't chat freely because my language model isn't loaded, but I can answer lookups, "
+                                      "timers, weather and music. Try asking: what is the capital of France.")
             action_result = "conversational reply"
             action_success = True
             action_executed = "converse"
@@ -2202,6 +2224,21 @@ class SaintGUI:
         ttk.Checkbutton(ctrl_frame, text="Mute Microphone", variable=self.mute_mic_var, command=self._on_mute_mic).grid(row=0, column=0, sticky=tk.W, padx=4)
         ttk.Checkbutton(ctrl_frame, text="Mute Speaker", variable=self.mute_speaker_var, command=self._on_mute_speaker).grid(row=0, column=1, sticky=tk.W, padx=4)
         ttk.Button(ctrl_frame, text="Show History", command=self.show_history).grid(row=0, column=2, padx=8)
+        ttk.Label(ctrl_frame, text="Voice:").grid(row=1, column=0, sticky=tk.E, pady=4)
+        voices = []
+        try:
+            voices = sorted(AGENT.kokoro.get_voices())
+        except Exception:
+            pass
+        self.voice_var = tk.StringVar(value=KOKORO_VOICE)
+        vbox = ttk.Combobox(ctrl_frame, textvariable=self.voice_var, values=voices or [KOKORO_VOICE], state="readonly", width=16)
+        vbox.grid(row=1, column=1, sticky=tk.W, pady=4)
+        vbox.bind("<<ComboboxSelected>>", lambda e: self._on_voice())
+        ttk.Button(ctrl_frame, text="Try voice", command=lambda: self.say_text("Hi, I'm SAINT. This is how I sound now.")).grid(row=1, column=2, padx=8)
+        self.speed_var = tk.DoubleVar(value=KOKORO_SPEED)
+        ttk.Scale(ctrl_frame, from_=0.8, to=1.3, variable=self.speed_var, orient="horizontal", length=120,
+                  command=lambda v: self._on_voice()).grid(row=1, column=3, padx=4)
+        ttk.Label(ctrl_frame, text="speed").grid(row=1, column=4, sticky=tk.W)
 
         self._motion_widgets = []  # disabled while Demo Mode runs
         servo_frame = ttk.LabelFrame(tab_hw, text="Servo Control (limited to each servo's safe range)", padding=6)
@@ -2740,6 +2777,11 @@ class SaintGUI:
         shutdown_motion()
         self.root.destroy()
 
+    def _on_voice(self) -> None:
+        global KOKORO_VOICE, KOKORO_SPEED
+        KOKORO_VOICE = self.voice_var.get()
+        KOKORO_SPEED = round(float(self.speed_var.get()), 2)
+
     def _on_mute_mic(self):
         global MUTE_MIC
         MUTE_MIC = self.mute_mic_var.get()
@@ -2968,10 +3010,10 @@ def run_flask():
 def init_local_llm():
     global llm
     if not HAS_LLAMA_CPP:
-        print("[LLM] llama-cpp-python not installed")
+        print("[LLM] OFF: llama-cpp-python is not installed (pip install llama-cpp-python)")
         return False
     if not MODEL_PATH or not os.path.exists(MODEL_PATH):
-        print("[LLM] Model path not found; skipping LLM init")
+        print(f"[LLM] OFF: model file not found at {MODEL_PATH} (set MODEL_PATH or run setup_pi.sh)")
         return False
     try:
         llm = Llama(model_path=MODEL_PATH, n_ctx=2048, n_threads=max(1, os.cpu_count() or 1), verbose=False)

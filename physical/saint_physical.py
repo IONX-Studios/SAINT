@@ -122,8 +122,9 @@ WAKE_COOLDOWN = float(os.environ.get("WAKE_COOLDOWN", "1.2"))
 
 MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(_HERE, "models", "ModelFiles", "llama-3.2-1b-instruct-q4_k_m.gguf"))
 
-# TTS: auto = Kokoro if its model files exist, else pyttsx3, else espeak-ng
-TTS_ENGINE = os.environ.get("SAINT_TTS", "auto").lower()   # auto | kokoro | pyttsx3 | espeak | print
+# TTS: Kokoro by default (SAINT_TTS=auto|pyttsx3|espeak|print to override); if Kokoro cannot load it falls back to espeak-ng
+SPEAK_MAX_CHARS = int(os.environ.get("SAINT_SPEAK_MAX_CHARS", "450"))   # spoken replies are cut at a sentence end (0 = no limit); the screen still shows everything
+TTS_ENGINE = os.environ.get("SAINT_TTS", "kokoro").lower()   # auto | kokoro | pyttsx3 | espeak | print
 KOKORO_MODEL_PATH = os.environ.get("KOKORO_MODEL", os.path.join(_HERE, "models", "kokoro", "kokoro-v1.0.int8.onnx"))
 KOKORO_VOICES_PATH = os.environ.get("KOKORO_VOICES", os.path.join(_HERE, "models", "kokoro", "voices-v1.0.bin"))
 KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "am_michael")
@@ -152,7 +153,7 @@ PINS = {
 COMMON_ANODE = False
 
 SERVO_CONFIG = {
-    "mouth": {"min": 600, "max": 2400, "angle_min": 90, "angle_max": 130},
+    "mouth": {"min": 600, "max": 2400, "angle_min": 45, "angle_max": 150},   # widened: lets the mouth shut fully and open wide
     "eyes_ud": {"min": 600, "max": 2400, "angle_min": 40, "angle_max": 90},
     "eyes_lr": {"min": 600, "max": 2400, "angle_min": 55, "angle_max": 125},
     "tilt": {"min": 500, "max": 2500, "angle_min": 30, "angle_max": 100},
@@ -176,10 +177,10 @@ HARD_PULSE_MAX = 2500
 # slew_deg_s: max speed of ANY move of that servo (None = unlimited).
 # CALIBRATE neutral and the demo ranges on the real robot before enabling the neck.
 SERVO_SAFETY = {
-    "mouth":   {"neutral": 90, "demo_min": 90, "demo_max": 90,  "slew_deg_s": None},
-    "eyes_ud": {"neutral": 65, "demo_min": 57, "demo_max": 73,  "slew_deg_s": None},
+    "mouth":   {"neutral": 75, "demo_min": 75, "demo_max": 75,  "slew_deg_s": None},
+    "eyes_ud": {"neutral": 65, "demo_min": 52, "demo_max": 80,  "slew_deg_s": None},
     "eyes_lr": {"neutral": 90, "demo_min": 75, "demo_max": 105, "slew_deg_s": None},
-    "tilt":    {"neutral": 90, "demo_min": 84, "demo_max": 96,  "slew_deg_s": 30.0},
+    "tilt":    {"neutral": 90, "demo_min": 80, "demo_max": 97,  "slew_deg_s": 30.0},
     "pan":     {"neutral": 90, "demo_min": 72, "demo_max": 108, "slew_deg_s": 30.0},
 }
 SLEW_TICK_S = 0.02            # interval between interpolated steps (max step = slew_deg_s * SLEW_TICK_S)
@@ -226,8 +227,8 @@ validate_safety_config()
 # the loudness of the speech: smoothed so it never snaps, and driven from the real
 # audio samples when Kokoro is the voice (otherwise a syllable-rate flap while talking).
 MOUTH_CONFIG = {
-    "closed": float(os.environ.get("SAINT_MOUTH_CLOSED", "90")),
-    "open": float(os.environ.get("SAINT_MOUTH_OPEN", "115")),
+    "closed": float(os.environ.get("SAINT_MOUTH_CLOSED", "75")),   # fully shut (calibrate on the Hardware tab)
+    "open": float(os.environ.get("SAINT_MOUTH_OPEN", "135")),     # wide open
     "tick_s": 0.025,          # 40 Hz update
     "attack_s": 0.045,        # time to open (smoothing time constant)
     "release_s": 0.09,        # time to close
@@ -242,8 +243,8 @@ MOUTH_CONFIG = {
 # range but still well inside each servo's hard limits. Neck speed is also capped by slew_deg_s.
 GAZE_ENABLED = "--no-gaze" not in sys.argv and _env_flag("SAINT_GAZE", True)
 GAZE_RANGE = {  # name: (min_deg, max_deg)
-    "eyes_lr": (70, 110), "eyes_ud": (58, 72),
-    "pan": (68, 112),     "tilt": (85, 95),
+    "eyes_lr": (70, 110), "eyes_ud": (50, 82),
+    "pan": (68, 112),     "tilt": (78, 98),     # tilt stays 8-12 deg clear of the 30..100 hard limits
 }
 GAZE_CONFIG = {
     "eye_speed_deg_s": 140.0, "neck_speed_deg_s": 22.0, "tick_s": 0.02,
@@ -291,6 +292,7 @@ CONVERSATION_HISTORY: list = []
 HISTORY_LOCK = threading.Lock()
 
 MUTE_MIC = False
+ESTOP = False   # set by the e-stop: nothing speaks, moves or listens until Resume
 MUTE_SPEAKER = False
 
 HEADERS = {"User-Agent": "SAINT-Assistant/1.0 (contact:none@example.com)"}
@@ -870,7 +872,7 @@ class GazeController:
         return max(lo, min(hi, n + frac * ((n - lo) if frac < 0 else (hi - n))))
 
     def _current_mode(self, now: float) -> str:
-        if not self.enabled or demo_is_running() or now < self._yield_until:
+        if not self.enabled or ESTOP or demo_is_running() or now < self._yield_until:
             return "off"
         if AGENT and getattr(AGENT, "is_speaking", False):
             return "talk"
@@ -887,9 +889,9 @@ class GazeController:
             return
         scale = GAZE_CONFIG["talk_scale"] if mode == "talk" else 1.0
         s = r.choice((-1, 1)) * r.uniform(0.35, 1.0) * scale
-        ev = [(0.0, {"eyes_lr": s, "eyes_ud": r.uniform(-0.6, 0.6) * scale})]
+        ev = [(0.0, {"eyes_lr": s, "eyes_ud": r.uniform(-0.95, 0.95) * scale})]
         if r.random() < GAZE_CONFIG["head_follow_prob"] * (0.6 if mode == "talk" else 1.0):
-            ev.append((r.uniform(0.15, 0.35), {"pan": s * r.uniform(0.5, 1.0), "tilt": r.uniform(-0.6, 0.5) * scale}))
+            ev.append((r.uniform(0.15, 0.35), {"pan": s * r.uniform(0.5, 1.0), "tilt": r.uniform(-0.8, 0.7) * scale}))
             ev.append((r.uniform(1.0, 1.8), {"eyes_lr": s * 0.25, "eyes_ud": 0.0}))   # eyes recentre as the head arrives
         else:
             ev.append((r.uniform(0.9, 1.8), {"eyes_lr": s * r.choice((0.0, -0.3)), "eyes_ud": 0.0}))
@@ -966,6 +968,19 @@ def split_sentences(text: str, max_len: int = 220) -> list:
             out.append(p)
     return out
 
+def trim_for_speech(text: str, limit: Optional[int] = None) -> str:
+    """Cut long replies at a sentence end so SAINT doesn't talk for minutes (the screen keeps the full text)."""
+    limit = SPEAK_MAX_CHARS if limit is None else limit
+    text = str(text)
+    if limit <= 0 or len(text) <= limit:
+        return text
+    out = ""
+    for sent in split_sentences(text):
+        if out and len(out) + len(sent) + 1 > limit:
+            break
+        out = (out + " " + sent).strip()
+    return out[:limit] if out else text[:limit]
+
 class Agent:
     """
     TTS agent: Kokoro (kokoro-onnx) first, then pyttsx3, then espeak-ng, then console.
@@ -999,7 +1014,9 @@ class Agent:
                     print("[TTS] Kokoro load failed, falling back:", e)
             else:
                 print(f"[TTS] Kokoro model files missing ({KOKORO_MODEL_PATH}); run setup_pi.sh")
-        if pref in ("auto", "kokoro", "pyttsx3") and HAS_TTS:
+        if pref in ("auto", "kokoro"):
+            print("[TTS] WARNING: Kokoro is not available (pip install kokoro-onnx sounddevice; run setup_pi.sh for the model files)")
+        if pref in ("auto", "pyttsx3") and HAS_TTS:
             return "pyttsx3"
         if pref != "print" and (shutil.which("espeak-ng") or shutil.which("espeak")):
             return "espeak"
@@ -1009,9 +1026,10 @@ class Agent:
         """Queue text to speak. With block=True, return once it has been spoken (or dropped)."""
         if not text:
             return
-        if MUTE_SPEAKER:
+        if MUTE_SPEAKER or ESTOP:
             print("[TTS muted]", text)
             return
+        text = trim_for_speech(text)
         done = threading.Event()
         self.is_speaking = True  # block the mic from the moment speech is queued
         self._queue.put((self._gen, str(text), done))
@@ -1112,7 +1130,7 @@ class Agent:
 
 def mic_blocked() -> bool:
     """True while the user muted the mic or SAINT is talking (so it can't hear itself)."""
-    return MUTE_MIC or bool(AGENT and getattr(AGENT, "is_speaking", False))
+    return MUTE_MIC or ESTOP or bool(AGENT and getattr(AGENT, "is_speaking", False))
 
 # End Agent class
 
@@ -1664,7 +1682,10 @@ def process_command(text: str) -> dict:
             action_executed = action
             print(f"[ACTION] {action} from: {text}")
 
-            if action in ("led", "look", "servo_move", "center") and demo_is_running():
+            if ESTOP and action in ("led", "look", "servo_move", "center", "tts"):
+                action_result = "E-stop is active. Press Resume first."
+
+            elif action in ("led", "look", "servo_move", "center") and demo_is_running():
                 # Demo Mode owns the servos/LED; don't fight it
                 action_result = "Demo Mode is running. Stop the demo first."
 
@@ -2095,7 +2116,7 @@ class SaintGUI:
     HEADER_COLORS = {  # status word -> (background, foreground)
         "Idle": ("#3a3f44", "white"), "Listening": ("#1e8e3e", "white"), "Processing": ("#1a73e8", "white"),
         "Executing": ("#1a73e8", "white"), "Demo running": ("#7b1fa2", "white"), "Stopping": ("#e37400", "white"),
-        "Returning to neutral": ("#e37400", "white"), "Error": ("#c5221f", "white"),
+        "Returning to neutral": ("#e37400", "white"), "E-STOP": ("#b00020", "white"), "Error": ("#c5221f", "white"),
     }
     LED_PRESETS = [("Cyan", (0,200,255)), ("Blue", (0,70,255)), ("Purple", (150,40,255)), ("Orange", (255,120,0)),
                    ("White", (255,255,255)), ("Red", (255,0,0)), ("Green", (0,255,0))]
@@ -2131,6 +2152,13 @@ class SaintGUI:
 
         ttk.Button(top, text="SAINT Login", command=self.login_prompt).pack(side=tk.LEFT, padx=4)
         ttk.Button(top, text="Spotify Login", command=self.spotify_login).pack(side=tk.LEFT, padx=4)
+        self.estop_btn = tk.Button(top, text="■ E-STOP (Esc)", font=("Helvetica", 11, "bold"), bg="#b00020", fg="white",
+                                   activebackground="#7f0016", command=self.emergency_stop)
+        self.estop_btn.pack(side=tk.RIGHT, padx=4)
+        self.resume_btn = tk.Button(top, text="▶ Resume systems", font=("Helvetica", 11, "bold"), bg="#1e8e3e", fg="white",
+                                    activebackground="#167232", command=self.resume_systems)
+        tk.Button(top, text="🔇 Stop talking", font=("Helvetica", 11, "bold"), bg="#e37400", fg="white",
+                  activebackground="#b35c00", command=self.stop_talking).pack(side=tk.RIGHT, padx=4)
 
         # one tab per area of focus; header, status line and tab strip stay put (small Pi screens: tabs scroll)
         self.notebook = ttk.Notebook(root)
@@ -2257,6 +2285,7 @@ class SaintGUI:
 
         root.bind_all("<space>", self._on_space)
         root.bind_all("<Escape>", lambda e: self.emergency_stop())
+        root.bind_all("<Control-space>", lambda e: (self.stop_talking(), "break")[1])
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.wake_listener = WakeWordListener(self)
@@ -2336,8 +2365,15 @@ class SaintGUI:
         self.mouth_limit_label = ttk.Label(mf, text="")
         self.mouth_limit_label.grid(row=0, column=2, rowspan=2, padx=8)
         ttk.Button(mf, text="Test mouth", command=self.mouth_test).grid(row=2, column=0, pady=4)
+        ttk.Button(mf, text="Shut", command=lambda: self._mouth_to("closed")).grid(row=3, column=0, pady=2)
+        ttk.Button(mf, text="Open wide", command=lambda: self._mouth_to("open")).grid(row=3, column=1, sticky=tk.W, pady=2)
         ttk.Button(mf, text="Say test phrase", command=lambda: self.say_text("Testing, one two three. Is my mouth moving with my voice?")).grid(row=2, column=1, sticky=tk.W, pady=4)
         self._on_mouth_limits()
+
+    def _mouth_to(self, which: str) -> None:
+        if not self._motion_allowed():
+            return
+        self._run_bg(lambda: CONTROLLER.set_angle("mouth", MOUTH_CONFIG[which]), "mouth")
 
     def _on_mouth_limits(self) -> None:
         lo, hi = SERVO_CONFIG["mouth"]["angle_min"], SERVO_CONFIG["mouth"]["angle_max"]
@@ -2462,12 +2498,18 @@ class SaintGUI:
                       "answer questions, play music, and I look around while I listen. Ask me anything.")
 
     def look_around_now(self) -> None:
+        if ESTOP:
+            self.display_result({"error": "E-stop is active. Press Resume first."})
+            return
         if demo_is_running():
             self.display_result({"error": "Demo Mode is running. Stop the demo first."})
         elif not (GAZE and GAZE.glance_now()):
             self.display_result({"error": "Turn on 'Ambient look-around' first"})
 
     def mouth_test(self) -> None:
+        if ESTOP:
+            self.display_result({"error": "E-stop is active. Press Resume first."})
+            return
         if AGENT and AGENT.mouth:
             self._run_bg(AGENT.mouth.test_pattern, "mouth_test")
         else:
@@ -2567,7 +2609,9 @@ class SaintGUI:
             canvas.yview_scroll(step, "units")
 
     def _refresh_header(self) -> None:
-        if self._demo_state == "running":
+        if ESTOP:
+            text = "E-STOP"
+        elif self._demo_state == "running":
             text = "Demo running"
         elif self._demo_state == "stopping":
             text = "Stopping"
@@ -2617,6 +2661,9 @@ class SaintGUI:
 
     # -- demo / safety --
     def start_demo(self) -> None:
+        if ESTOP:
+            self.display_result({"error": "E-stop is active. Press Resume first."})
+            return
         if not DEMO:
             self.display_result({"error": "No servo controller; demo unavailable"})
             return
@@ -2632,20 +2679,46 @@ class SaintGUI:
             self.display_result({"status": "Demo stopped" if ok else "Demo did not stop within 1 s"})
 
     def emergency_stop(self) -> None:
-        """Stop the demo, cut any slew short, then glide back to neutral."""
+        """Stop EVERYTHING: speech, demo, look-around, lip-sync, listening and the eye LED, then
+        glide the servos to neutral and hold. Nothing restarts until Resume."""
+        global ESTOP
+        ESTOP = True
+        if AGENT:
+            AGENT.tts_stop()
         if DEMO:
             DEMO.stop(timeout=1.0)
-        gaze_yield(10.0)
+        gaze_yield(1e6)
         if AGENT and AGENT.mouth:
             AGENT.mouth.stop()
         if CONTROLLER:
             CONTROLLER.abort_motion()
-            self.set_status("Returning to neutral")
+            try:
+                CONTROLLER.rgb_off()
+            except Exception:
+                pass
             def back():
                 CONTROLLER.go_neutral(only_known=True)
                 self.set_status("Idle")
             self._run_bg(back, "neutral")
-        self.display_result({"status": "Emergency stop: returning to neutral"})
+        self.estop_btn.pack_forget()
+        self.resume_btn.pack(side=tk.RIGHT, padx=4)
+        self._refresh_header()
+        self.display_result({"status": "E-STOP: speech, motion, lights, look-around and listening are all stopped. Press Resume to restart."})
+
+    def resume_systems(self) -> None:
+        global ESTOP
+        ESTOP = False
+        gaze_yield(0.0)
+        self.resume_btn.pack_forget()
+        self.estop_btn.pack(side=tk.RIGHT, padx=4)
+        self._refresh_header()
+        self.display_result({"status": "Resumed. Mic" + (" is still muted" if MUTE_MIC else " on") + "; look-around " + ("on" if self.gaze_var.get() else "off")})
+
+    def stop_talking(self) -> None:
+        """Cut off speech now (long answers) and drop anything queued. Does not stop motion."""
+        if AGENT:
+            AGENT.tts_stop()
+        self.display_result({"status": "Stopped talking"})
 
     def _on_space(self, event):
         if isinstance(event.widget, (tk.Text, tk.Entry, ttk.Entry)):
@@ -2766,6 +2839,9 @@ class SaintGUI:
         threading.Thread(target=work, daemon=True).start()
 
     def _motion_allowed(self) -> bool:
+        if ESTOP:
+            self.display_result({"error": "E-stop is active. Press Resume first."})
+            return False
         if demo_is_running():
             self.display_result({"error": "Demo Mode is running. Stop the demo first."})
             return False

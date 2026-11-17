@@ -59,3 +59,4 @@ dist/
 # Windows build output (packaging/windows/build.py)
 build/
 dist/
+saint_secrets.json
